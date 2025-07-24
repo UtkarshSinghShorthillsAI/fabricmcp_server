@@ -1,0 +1,143 @@
+import logging
+import json
+import base64
+import httpx
+import uuid
+from typing import Optional, List, Dict, Any
+
+from fastmcp import FastMCP, Context
+from fastmcp.exceptions import ToolError
+from pydantic import Field
+
+from ..fabric_models import (
+    ItemEntity, CreateItemRequest, DefinitionPart, ItemDefinitionForCreate,
+    UpdateItemDefinitionRequest, NotebookCell, FabricApiException, FabricAuthException
+)
+from ..app import get_session_fabric_client, job_status_store
+
+logger = logging.getLogger(__name__)
+
+def _build_notebook_definition(cells: List[NotebookCell], lakehouse_id: str, workspace_id: str) -> str:
+    """Helper to construct and encode the notebook's JSON definition."""
+    notebook_struct = {
+        "nbformat": 4, "nbformat_minor": 5,
+        "cells": [cell.model_dump(exclude_none=True) for cell in cells],
+        "metadata": {
+            "language_info": {"name": "python"},
+            "dependencies": {
+                "lakehouse": {
+                    "default_lakehouse": lakehouse_id,
+                    "default_lakehouse_workspace_id": workspace_id
+                }
+            }
+        }
+    }
+    notebook_json = json.dumps(notebook_struct)
+    return base64.b64encode(notebook_json.encode('utf-8')).decode('utf-8')
+
+async def create_notebook_impl(
+    ctx: Context,
+    workspace_id: str = Field(..., description="The ID of the workspace where the notebook will be created."),
+    notebook_name: str = Field(..., description="The desired display name for the new notebook."),
+    lakehouse_id: str = Field(..., description="The ID of the Lakehouse to attach to this notebook by default."),
+    description: Optional[str] = Field(None, description="An optional description for the new notebook.")
+) -> Dict[str, Any]:
+    """Creates a new notebook. Handles both immediate and long-running creation."""
+    logger.info(f"Tool 'create_notebook' called for '{notebook_name}'.")
+    try:
+        client = await get_session_fabric_client(ctx)
+        
+        initial_cells = [NotebookCell(cell_type="markdown", source=[f"# {notebook_name}"])]
+        b64_payload = _build_notebook_definition(initial_cells, lakehouse_id, workspace_id)
+        
+        definition = ItemDefinitionForCreate(
+            format="ipynb",
+            parts=[DefinitionPart(path="notebook-content.ipynb", payload=b64_payload, payloadType="InlineBase64")]
+        )
+        create_payload = CreateItemRequest(displayName=notebook_name, type="Notebook", description=description, definition=definition)
+        
+        response = await client.create_item(workspace_id, create_payload)
+        
+        # CORRECTLY HANDLE BOTH 201 (immediate) and 202 (async)
+        if isinstance(response, ItemEntity):
+            return {"status": "Succeeded", "message": "Notebook created immediately.", "result": response.model_dump(by_alias=True)}
+        
+        if isinstance(response, httpx.Response) and response.status_code == 202:
+            operation_url = response.headers.get("Operation-Location")
+            if not operation_url:
+                return {"status": "Accepted (Untrackable)", "message": "Notebook creation initiated."}
+            
+            job_id = str(uuid.uuid4())
+            job_status_store[job_id] = operation_url
+            return {"status": "Accepted", "job_id": job_id, "message": "Notebook creation in progress."}
+        
+        raise ToolError(f"Unexpected API response. Status: {getattr(response, 'status_code', 'N/A')}")
+
+    except (FabricAuthException, FabricApiException) as e:
+        raise ToolError(f"Failed to create notebook: {e.response_text or str(e)}") from e
+
+async def update_notebook_content_impl(
+    ctx: Context,
+    workspace_id: str = Field(..., description="The ID of the workspace containing the notebook."),
+    notebook_id: str = Field(..., description="The ID of the notebook to update."),
+    lakehouse_id: str = Field(..., description="The ID of the default Lakehouse currently attached to the notebook."),
+    cells: List[NotebookCell] = Field(..., description="A list of cell objects defining the new content of the notebook.")
+) -> Dict[str, Any]:
+    """Updates a notebook's content. Requires the attached Lakehouse ID. This is a long-running operation."""
+    logger.info(f"Tool 'update_notebook_content' called for notebook '{notebook_id}'.")
+    try:
+        client = await get_session_fabric_client(ctx)
+
+        b64_payload = _build_notebook_definition(cells, lakehouse_id, workspace_id)
+        
+        definition = ItemDefinitionForCreate(
+            format="ipynb",
+            parts=[DefinitionPart(path="notebook-content.ipynb", payload=b64_payload, payloadType="InlineBase64")]
+        )
+        update_payload = UpdateItemDefinitionRequest(definition=definition)
+        
+        response = await client.update_item_definition(workspace_id, notebook_id, update_payload)
+
+        if isinstance(response, httpx.Response) and response.status_code == 202:
+            operation_url = response.headers.get("Operation-Location")
+            if not operation_url: return {"status": "Accepted (Untrackable)", "message": "Notebook update initiated."}
+            
+            job_id = str(uuid.uuid4())
+            job_status_store[job_id] = operation_url
+            return {"status": "Accepted", "job_id": job_id, "message": "Notebook update in progress."}
+
+        raise ToolError(f"Unexpected response. Status: {getattr(response, 'status_code', 'N/A')}")
+        
+    except (FabricAuthException, FabricApiException) as e:
+        raise ToolError(f"Failed to update notebook: {e.response_text or str(e)}") from e
+        
+async def run_notebook_impl(
+    ctx: Context, 
+    workspace_id: str = Field(..., description="The ID of the workspace containing the notebook."),
+    notebook_id: str = Field(..., description="The ID of the notebook to execute.")
+) -> Dict[str, Any]:
+    """Triggers the execution of a Fabric notebook. This is a long-running operation."""
+    logger.info(f"Tool 'run_notebook' called for notebook '{notebook_id}'.")
+    try:
+        client = await get_session_fabric_client(ctx)
+        response = await client.run_item(workspace_id, notebook_id, "RunNotebook")
+
+        if isinstance(response, httpx.Response) and response.status_code == 202:
+            operation_url = response.headers.get("Location")
+            if not operation_url: raise ToolError("API did not provide a status location.")
+            
+            job_id = operation_url.split('/')[-1]
+            job_status_store[job_id] = operation_url
+            return {"status": "Accepted", "job_id": job_id, "message": "Notebook execution started."}
+
+        raise ToolError(f"Unexpected response from API. Status: {getattr(response, 'status_code', 'N/A')}")
+
+    except (FabricAuthException, FabricApiException) as e:
+        raise ToolError(f"Failed to run notebook: {e.response_text or str(e)}") from e
+
+def register_notebook_tools(app: FastMCP):
+    logger.info("Registering Fabric Notebook tools...")
+    app.tool(name="create_notebook")(create_notebook_impl)
+    app.tool(name="update_notebook_content")(update_notebook_content_impl)
+    app.tool(name="run_notebook")(run_notebook_impl)
+    logger.info("Fabric Notebook tools registration complete.")

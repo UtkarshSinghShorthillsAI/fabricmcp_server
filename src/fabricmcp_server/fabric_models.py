@@ -1,8 +1,6 @@
-# In src/fabricmcp_server/fabric_models.py
-
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 
 # --- Custom Exceptions ---
 
@@ -25,13 +23,15 @@ class DefinitionPart(BaseModel):
     path: str
     payload: str
     payload_type: str = Field(alias="payloadType")
-    
     model_config = {"populate_by_name": True}
 
-class ItemDefinition(BaseModel):
+# Corrected Definition model for creation
+class ItemDefinitionForCreate(BaseModel):
+    format: str = Field(..., description="The format of the definition, e.g., 'ipynb' for notebooks or 'pbidataset' for Power BI datasets.")
     parts: List[DefinitionPart]
-    
-    model_config = {"populate_by_name": True}
+
+class ItemDefinitionForGet(BaseModel):
+    parts: List[DefinitionPart]
 
 class ItemEntity(BaseModel):
     id: Optional[str] = Field(None, description="The item ID")
@@ -39,22 +39,27 @@ class ItemEntity(BaseModel):
     type: Optional[str] = Field(None, description="The type of the item (e.g., 'Lakehouse', 'Notebook')")
     display_name: Optional[str] = Field(None, alias="displayName", description="The display name of the item")
     description: Optional[str] = Field(None, description="The description of the item")
-    definition: Optional[ItemDefinition] = Field(None, description="The definition of the item")
-    
+    definition: Optional[ItemDefinitionForGet] = None
     model_config = {"populate_by_name": True}
 
 class CreateItemRequest(BaseModel):
     display_name: str = Field(..., alias="displayName")
     type: str
     description: Optional[str] = None
-    workspace_id: Optional[str] = Field(None, alias="workspaceId") # Usually in path, but can be useful
-    definition: Optional[ItemDefinition] = None # For creation with definition
-    
+    definition: Optional[ItemDefinitionForCreate] = None
     model_config = {"populate_by_name": True}
 
 class UpdateItemDefinitionRequest(BaseModel):
-    display_name: str = Field(..., alias="displayName")
-    type: str
-    definition: ItemDefinition
+    definition: ItemDefinitionForCreate # Update also requires the format
 
-    model_config = {"populate_by_name": True}
+# --- Models for Complex Tool Arguments ---
+
+class NotebookCell(BaseModel):
+    cell_type: str = Field(..., description="Type of the cell, e.g., 'code' or 'markdown'.")
+    source: List[str] = Field(..., description="A list of strings representing the lines of code/text in the cell.")
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+class PipelineActivity(BaseModel):
+    name: str = Field(..., description="A unique name for the activity within the pipeline.")
+    notebook_id: str = Field(..., description="The ID of the notebook to be executed in this activity.")
+    depends_on: Optional[List[str]] = Field(None, description="A list of names of other activities that must succeed before this one runs.")
