@@ -148,7 +148,7 @@ async def update_pipeline_definition_impl(
 
 def register_pipeline_tools(app: FastMCP):
     logger.info("Registering Fabric Pipeline tools...")
-    app.tool(name="create_pipeline")(create_pipeline_impl)
+    # app.tool(name="create_pipeline")(create_pipeline_impl)
     app.tool(name="run_pipeline")(run_pipeline_impl)
     app.tool(name="update_pipeline")(update_pipeline_definition_impl)
     logger.info("Fabric Pipeline tools registration complete.")

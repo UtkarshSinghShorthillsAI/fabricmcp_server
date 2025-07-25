@@ -162,10 +162,9 @@ async def get_job_run_status_impl(
 
 def register_notebook_tools(app: FastMCP):
     logger.info("Registering Fabric Notebook tools...")
-    app.tool(name="create_notebook")(create_notebook_impl)
+    # app.tool(name="create_notebook")(create_notebook_impl)
     app.tool(name="update_notebook_content")(update_notebook_content_impl)
     app.tool(name="run_notebook")(run_notebook_impl)
-    app.tool(name="delete_notebook")(delete_notebook_impl)
-    # --- ADD THIS LINE ---
+    # app.tool(name="delete_notebook")(delete_notebook_impl)
     app.tool(name="get_job_run_status")(get_job_run_status_impl)
     logger.info("Fabric Notebook tools registration complete.")

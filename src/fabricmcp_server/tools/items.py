@@ -16,7 +16,7 @@ async def list_fabric_items_impl(
     ctx: Context,
     workspace_id: str = Field(..., description="The ID of the Fabric workspace.")
 ) -> Optional[List[ItemEntity]]:
-    """Lists all items (e.g., Lakehouses, Notebooks) in a specified Fabric workspace."""
+    """Lists all items (e.g., 'Lakehouse', 'Warehouse', 'DataPipeline', 'Notebook', 'Dataflow', any other Fabric item) in a specified Fabric workspace."""
     logger.info(f"Tool 'list_fabric_items' called for workspace {workspace_id}.")
     try:
         client = await get_session_fabric_client(ctx)
@@ -48,7 +48,7 @@ async def create_fabric_item_impl(
     ctx: Context,
     workspace_id: str = Field(..., description="The ID of the Fabric workspace where the item will be created."),
     display_name: str = Field(..., description="The display name for the new item."),
-    item_type: str = Field(..., description="The type of simple item to create (e.g., 'Lakehouse', 'Warehouse'). For complex items like Notebooks, use the dedicated tool."),
+    item_type: str = Field(..., description="The type of simple item to create (e.g., 'Lakehouse', 'Warehouse', 'DataPipeline', 'Notebook', 'Dataflow', any other Fabric item). For complex items like Notebooks, use the dedicated tool."),
     description: Optional[str] = Field(None, description="An optional description for the new item."),
 ) -> ItemEntity:
     """Creates a simple new item in a specified Fabric workspace. Does not support complex definitions."""
