@@ -63,3 +63,18 @@ class PipelineActivity(BaseModel):
     name: str = Field(..., description="A unique name for the activity within the pipeline.")
     notebook_id: str = Field(..., description="The ID of the notebook to be executed in this activity.")
     depends_on: Optional[List[str]] = Field(None, description="A list of names of other activities that must succeed before this one runs.")
+
+# --- Models for Lakehouse Operations ---
+
+class FormatOptions(BaseModel):
+    format: str = "Csv"
+    header: bool = True
+    delimiter: str = ","
+
+class LoadTableRequest(BaseModel):
+    relative_path: str = Field(..., alias="relativePath")
+    path_type: str = Field("File", alias="pathType")
+    mode: str = "Overwrite"
+    recursive: bool = False
+    format_options: FormatOptions = Field(FormatOptions(), alias="formatOptions")
+    model_config = {"populate_by_name": True}

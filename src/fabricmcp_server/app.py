@@ -78,7 +78,6 @@ def register_tools() -> None:
         items.register_item_tools(mcp_app)
         logger.info("Successfully registered 'items' tools.")
 
-        # --- ADD THE FOLLOWING ---
         from .tools import notebooks
         notebooks.register_notebook_tools(mcp_app)
         logger.info("Successfully registered 'notebooks' tools.")
@@ -86,6 +85,10 @@ def register_tools() -> None:
         from .tools import pipelines
         pipelines.register_pipeline_tools(mcp_app)
         logger.info("Successfully registered 'pipelines' tools.")
+
+        from .tools import lakehouses
+        lakehouses.register_lakehouse_tools(mcp_app)
+        logger.info("Successfully registered 'lakehouses' tools.")
     except Exception as exc:
         logger.exception(f"Error during tool registration: {exc}")
 
