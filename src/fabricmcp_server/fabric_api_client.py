@@ -129,3 +129,18 @@ class FabricApiClient:
         response = await self._httpx_client.get(operation_url, headers=headers)
         response.raise_for_status()
         return response
+    
+    async def update_pipeline_definition(
+        self,
+        workspace_id: str,
+        pipeline_id: str,
+        definition: Dict[str, Any],
+        update_metadata: bool = False
+    ) -> httpx.Response:
+        """
+        Calls the Fabric REST API to update a pipeline definition using updateDefinition.
+        """
+        url = f"{self._base_url}/v1/workspaces/{workspace_id}/dataPipelines/{pipeline_id}/updateDefinition"
+        params = {"updateMetadata": "true"} if update_metadata else None
+        headers = await self._get_auth_header()
+        return await self._httpx_client.post(url, json={"definition": definition}, params=params, headers=headers)

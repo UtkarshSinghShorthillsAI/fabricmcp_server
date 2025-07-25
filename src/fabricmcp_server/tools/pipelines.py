@@ -94,8 +94,61 @@ async def run_pipeline_impl(
     except (FabricAuthException, FabricApiException) as e:
         raise ToolError(f"Failed to run pipeline: {e.response_text or str(e)}") from e
 
+async def update_pipeline_definition_impl(
+    ctx: Context,
+    workspace_id: str = Field(..., description="Workspace ID."),
+    pipeline_id: str = Field(..., description="ID of the Data Pipeline to update."),
+    pipeline_name: str = Field(..., description="Updated pipeline name."),
+    activities: List[PipelineActivity] = Field(..., description="New notebook activity list."),
+    update_metadata: bool = Field(False, description="Include `.platform` metadata part.")
+) -> Dict[str, Any]:
+    logger.info(f"Tool 'update_pipeline_definition' called for pipeline: {pipeline_id}")
+    try:
+        client = await get_session_fabric_client(ctx)
+        b64_payload = _build_pipeline_definition(pipeline_name, activities, workspace_id)
+
+        parts = [{
+            "path": "pipeline-content.json",
+            "payload": b64_payload,
+            "payloadType": "InlineBase64"
+        }]
+
+        if update_metadata:
+            # Optionally add .platform part if you have it
+            platform_b64 = "<BASE64_ENCODED_PLATFORM_FILE>"  # Placeholder
+            parts.append({
+                "path": ".platform",
+                "payload": platform_b64,
+                "payloadType": "InlineBase64"
+            })
+
+        definition = {"parts": parts}
+
+        response = await client.update_pipeline_definition(
+            workspace_id=workspace_id,
+            pipeline_id=pipeline_id,
+            definition=definition,
+            update_metadata=update_metadata
+        )
+
+        if response.status_code == 200:
+            return {"status": "Succeeded", "message": "Pipeline definition updated."}
+        elif response.status_code == 202:
+            op_url = response.headers.get("Location") or response.headers.get("x-ms-operation-id")
+            job_id = str(uuid.uuid4())
+            if op_url:
+                job_status_store[job_id] = op_url
+                return {"status": "Accepted", "job_id": job_id, "message": "Update in progress."}
+            return {"status": "Accepted", "message": "Update initiated; no tracking URL."}
+        else:
+            raise ToolError(f"Unexpected status: {response.status_code}")
+
+    except (FabricAuthException, FabricApiException) as e:
+        raise ToolError(f"Failed to update pipeline definition: {e.response_text or str(e)}") from e
+
 def register_pipeline_tools(app: FastMCP):
     logger.info("Registering Fabric Pipeline tools...")
     app.tool(name="create_pipeline")(create_pipeline_impl)
     app.tool(name="run_pipeline")(run_pipeline_impl)
+    app.tool(name="update_pipeline")(update_pipeline_definition_impl)
     logger.info("Fabric Pipeline tools registration complete.")
