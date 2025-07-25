@@ -127,6 +127,12 @@ class FabricApiClient:
         response = await self._httpx_client.get(operation_url, headers=headers)
         response.raise_for_status()
         return response
+    async def get_job_instance_status(self, job_instance_url: str) -> Dict[str, Any]:
+        """Gets the status of a specific job instance (e.g., a pipeline or notebook run)."""
+        headers = await self._get_auth_header("https://api.fabric.microsoft.com/.default")
+        response = await self._httpx_client.get(job_instance_url, headers=headers)
+        response.raise_for_status()
+        return response.json()
     
     async def update_pipeline_definition(
         self,
