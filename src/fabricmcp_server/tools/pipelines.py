@@ -7,7 +7,10 @@ from typing import Optional, List, Dict, Any
 
 from fastmcp import FastMCP, Context
 from fastmcp.exceptions import ToolError
-from pydantic import Field
+from pydantic import BaseModel, Field
+from typing import List, Optional
+from src.fabricmcp_server.activity_types import Activity  # new import
+
 
 from ..fabric_models import (
     ItemEntity, CreateItemRequest, DefinitionPart, ItemDefinitionForCreate, 
@@ -31,41 +34,98 @@ def _build_pipeline_definition(pipeline_name: str, activities: List[PipelineActi
     pipeline_json = json.dumps(pipeline_struct)
     return base64.b64encode(pipeline_json.encode('utf-8')).decode('utf-8')
 
+def _raise_raw_http_error(resp: httpx.Response):
+    # Return exactly what Fabric sent, no wrapping/formatting
+    try:
+        raise ToolError(resp.text)
+    except Exception:
+        raise ToolError(str(resp))
+
+def _encode_b64(obj: dict) -> str:
+    return base64.b64encode(json.dumps(obj).encode("utf-8")).decode("utf-8")
+
+
+def _build_pipeline_definition_any(
+    pipeline_name: str,
+    workspace_id: str,
+    activities_old: Optional[List[PipelineActivity]] = None,
+    activities_v2: Optional[List[Activity]] = None
+) -> str:
+    """
+    If activities_v2 is provided, use the new discriminated-union models.
+    Otherwise, fall back to the old notebook-only PipelineActivity list.
+    """
+    if activities_v2:
+        activities_json = [
+            a.model_dump(by_alias=True, exclude_none=True)  # Pydantic v2
+            for a in activities_v2
+        ]
+    else:
+        # Old path: TridentNotebook only
+        activities_json = []
+        for act in activities_old or []:
+            activities_json.append({
+                "name": act.name,
+                "type": "TridentNotebook",
+                "typeProperties": {
+                    "notebookId": act.notebook_id,
+                    "workspaceId": workspace_id,
+                    "parameters": {}
+                },
+                "dependsOn": [
+                    {"activity": dep, "dependencyConditions": ["Succeeded"]}
+                    for dep in (act.depends_on or [])
+                ]
+            })
+
+    pipeline_struct = {"name": pipeline_name, "properties": {"activities": activities_json}}
+    return _encode_b64(pipeline_struct)
+
 async def create_pipeline_impl(
     ctx: Context,
     workspace_id: str = Field(..., description="The ID of the workspace where the pipeline will be created."),
-    pipeline_name: str = Field(..., description="The desired display name for the new data pipeline."),
-    activities: List[PipelineActivity] = Field(..., description="A list of notebook activities that define the pipeline's workflow."),
-    description: Optional[str] = Field(None, description="An optional description for the new pipeline.")
+    pipeline_name: str = Field(..., description="Display name for the new data pipeline."),
+    activities: Optional[List[PipelineActivity]] = Field(None, description="Legacy: notebook activities only."),
+    activities_v2: Optional[List[Activity]] = Field(None, description="Preferred: mixed activity list."),
+    description: Optional[str] = Field(None, description="Optional description.")
 ) -> Dict[str, Any]:
-    """Creates a new Data Pipeline by orchestrating notebooks. Handles both immediate and long-running creation."""
+    """Creates a new Data Pipeline. Supports both legacy and v2 activity payloads."""
     logger.info(f"Tool 'create_pipeline' called for '{pipeline_name}'.")
     try:
         client = await get_session_fabric_client(ctx)
-        b64_payload = _build_pipeline_definition(pipeline_name, activities, workspace_id)
-        
+
+        b64_payload = _build_pipeline_definition_any(
+            pipeline_name=pipeline_name,
+            workspace_id=workspace_id,
+            activities_old=activities,
+            activities_v2=activities_v2
+        )
+
         definition = ItemDefinitionForCreate(
             format="Trident.DataPipeline",
             parts=[DefinitionPart(path="pipeline-content.json", payload=b64_payload, payloadType="InlineBase64")]
         )
         create_payload = CreateItemRequest(displayName=pipeline_name, type="DataPipeline", description=description, definition=definition)
-        
+
         response = await client.create_item(workspace_id, create_payload)
-        
+
         if isinstance(response, ItemEntity):
             return {"status": "Succeeded", "message": "Pipeline created immediately.", "result": response.model_dump(by_alias=True)}
 
-        if isinstance(response, httpx.Response) and response.status_code == 202:
-            operation_url = response.headers.get("Operation-Location")
-            if not operation_url:
-                return {"status": "Accepted (Untrackable)", "message": "Pipeline creation initiated."}
-            
-            job_id = str(uuid.uuid4())
-            job_status_store[job_id] = operation_url
-            return {"status": "Accepted", "job_id": job_id, "message": "Pipeline creation is in progress."}
-        
-        raise ToolError(f"Unexpected response. Status: {getattr(response, 'status_code', 'N/A')}")
-        
+        if isinstance(response, httpx.Response):
+            if response.status_code == 202:
+                operation_url = response.headers.get("Operation-Location")
+                if not operation_url:
+                    return {"status": "Accepted (Untrackable)", "message": "Pipeline creation initiated."}
+                job_id = str(uuid.uuid4())
+                job_status_store[job_id] = operation_url
+                return {"status": "Accepted", "job_id": job_id, "message": "Pipeline creation is in progress."}
+            if response.status_code >= 400:
+                _raise_raw_http_error(response)
+
+        raise ToolError(str(response))
+
+
     except (FabricAuthException, FabricApiException) as e:
         raise ToolError(f"Failed to create pipeline: {e.response_text or str(e)}") from e
 
@@ -80,16 +140,18 @@ async def run_pipeline_impl(
         client = await get_session_fabric_client(ctx)
         response = await client.run_item(workspace_id, pipeline_id, "Pipeline")
 
-        if isinstance(response, httpx.Response) and response.status_code == 202:
-            operation_url = response.headers.get("Location")
-            if not operation_url: raise ToolError("API did not provide a status location.")
-            
-            job_id = operation_url.split('/')[-1]
-            job_status_store[job_id] = operation_url
-            
-            return {"status": "Accepted", "job_id": job_id, "message": "Pipeline execution started."}
+        if isinstance(response, httpx.Response):
+            if response.status_code == 202:
+                operation_url = response.headers.get("Location")
+                if not operation_url:
+                    raise ToolError("API did not provide a status location.")
+                job_id = operation_url.split('/')[-1]
+                job_status_store[job_id] = operation_url
+                return {"status": "Accepted", "job_id": job_id, "message": "Pipeline execution started."}
+            if response.status_code >= 400:
+                _raise_raw_http_error(response)
 
-        raise ToolError(f"Unexpected response from API. Status: {getattr(response, 'status_code', 'N/A')}")
+        raise ToolError(str(response))
 
     except (FabricAuthException, FabricApiException) as e:
         raise ToolError(f"Failed to run pipeline: {e.response_text or str(e)}") from e
@@ -97,15 +159,22 @@ async def run_pipeline_impl(
 async def update_pipeline_definition_impl(
     ctx: Context,
     workspace_id: str = Field(..., description="Workspace ID."),
-    pipeline_id: str = Field(..., description="ID of the Data Pipeline to update."),
+    pipeline_id: str = Field(..., description="Pipeline ID to update."),
     pipeline_name: str = Field(..., description="Updated pipeline name."),
-    activities: List[PipelineActivity] = Field(..., description="New notebook activity list."),
+    activities: Optional[List[PipelineActivity]] = Field(None, description="Legacy: notebook activity list."),
+    activities_v2: Optional[List[Activity]] = Field(None, description="Preferred: mixed activity list."),
     update_metadata: bool = Field(False, description="Include `.platform` metadata part.")
 ) -> Dict[str, Any]:
-    logger.info(f"Tool 'update_pipeline_definition' called for pipeline: {pipeline_id}")
+    logger.info(f"Tool 'update_pipeline' called for pipeline: {pipeline_id}")
     try:
         client = await get_session_fabric_client(ctx)
-        b64_payload = _build_pipeline_definition(pipeline_name, activities, workspace_id)
+
+        b64_payload = _build_pipeline_definition_any(
+            pipeline_name=pipeline_name,
+            workspace_id=workspace_id,
+            activities_old=activities,
+            activities_v2=activities_v2
+        )
 
         parts = [{
             "path": "pipeline-content.json",
@@ -114,8 +183,7 @@ async def update_pipeline_definition_impl(
         }]
 
         if update_metadata:
-            # Optionally add .platform part if you have it
-            platform_b64 = "<BASE64_ENCODED_PLATFORM_FILE>"  # Placeholder
+            platform_b64 = "<BASE64_ENCODED_PLATFORM_FILE>"
             parts.append({
                 "path": ".platform",
                 "payload": platform_b64,
@@ -133,15 +201,18 @@ async def update_pipeline_definition_impl(
 
         if response.status_code == 200:
             return {"status": "Succeeded", "message": "Pipeline definition updated."}
-        elif response.status_code == 202:
+        if response.status_code == 202:
             op_url = response.headers.get("Location") or response.headers.get("x-ms-operation-id")
             job_id = str(uuid.uuid4())
             if op_url:
                 job_status_store[job_id] = op_url
                 return {"status": "Accepted", "job_id": job_id, "message": "Update in progress."}
             return {"status": "Accepted", "message": "Update initiated; no tracking URL."}
-        else:
-            raise ToolError(f"Unexpected status: {response.status_code}")
+
+        if response.status_code >= 400:
+            _raise_raw_http_error(response)
+
+        raise ToolError(str(response))
 
     except (FabricAuthException, FabricApiException) as e:
         raise ToolError(f"Failed to update pipeline definition: {e.response_text or str(e)}") from e
