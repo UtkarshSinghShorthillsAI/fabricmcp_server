@@ -1,0 +1,423 @@
+{
+  "copy_data_activity_examples": {
+    "1_lakehouse_table_to_table_from_json": {
+      "tool": "create_copy_data_activity_from_json",
+      "description": "Create copy activity using exact JSON structure from Fabric UI",
+      "parameters": {
+        "workspace_id": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+        "pipeline_name": "LakehouseTableToTable_FromJSON",
+        "copy_activity_json": {
+          "name": "Copy_TableToTable",
+          "description": "Copy from lakehouse table to lakehouse table using exact Fabric structure",
+          "type": "Copy",
+          "dependsOn": [],
+          "policy": {
+            "timeout": "0.12:00:00",
+            "retry": 0,
+            "retryIntervalInSeconds": 30,
+            "secureOutput": false,
+            "secureInput": false
+          },
+          "typeProperties": {
+            "source": {
+              "type": "LakehouseTableSource",
+              "timestampAsOf": "2025-07-26T02:00:00.000Z",
+              "versionAsOf": 1,
+              "datasetSettings": {
+                "annotations": [],
+                "linkedService": {
+                  "name": "SourceLakehouse_Test",
+                  "properties": {
+                    "annotations": [],
+                    "type": "Lakehouse",
+                    "typeProperties": {
+                      "workspaceId": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+                      "artifactId": "5b98a120-0523-4c15-98e8-622832a671b0",
+                      "rootFolder": "Tables"
+                    }
+                  }
+                },
+                "type": "LakehouseTable",
+                "schema": [],
+                "typeProperties": {
+                  "table": "sales_transactions"
+                }
+              }
+            },
+            "sink": {
+              "type": "LakehouseTableSink",
+              "tableActionOption": "Append",
+              "datasetSettings": {
+                "annotations": [],
+                "linkedService": {
+                  "name": "SinkLakehouse_Test",
+                  "properties": {
+                    "annotations": [],
+                    "type": "Lakehouse",
+                    "typeProperties": {
+                      "workspaceId": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+                      "artifactId": "6f2063f8-424f-4c22-918b-59629e0356f4",
+                      "rootFolder": "Tables"
+                    }
+                  }
+                },
+                "type": "LakehouseTable",
+                "schema": [],
+                "typeProperties": {
+                  "table": "processed_sales"
+                }
+              }
+            },
+            "enableStaging": false,
+            "translator": {
+              "type": "TabularTranslator",
+              "typeConversion": true,
+              "typeConversionSettings": {
+                "allowDataTruncation": true,
+                "treatBooleanAsNumber": false
+              }
+            }
+          }
+        },
+        "description": "Copy activity created from exact Fabric JSON structure"
+      }
+    },
+
+    "2_lakehouse_table_to_files_from_json": {
+      "tool": "create_copy_data_activity_from_json",
+      "description": "Create copy activity from table to files using exact JSON structure",
+      "parameters": {
+        "workspace_id": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+        "pipeline_name": "LakehouseTableToFiles_FromJSON",
+        "copy_activity_json": {
+          "name": "Copy_TableToFiles",
+          "description": "Copy from lakehouse table to lakehouse files using exact Fabric structure",
+          "type": "Copy",
+          "dependsOn": [],
+          "policy": {
+            "timeout": "0.12:00:00",
+            "retry": 0,
+            "retryIntervalInSeconds": 30,
+            "secureOutput": false,
+            "secureInput": false
+          },
+          "typeProperties": {
+            "source": {
+              "type": "LakehouseTableSource",
+              "timestampAsOf": "2025-07-26T02:00:00.000Z",
+              "versionAsOf": 1,
+              "datasetSettings": {
+                "annotations": [],
+                "linkedService": {
+                  "name": "SourceLakehouse_Test",
+                  "properties": {
+                    "annotations": [],
+                    "type": "Lakehouse",
+                    "typeProperties": {
+                      "workspaceId": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+                      "artifactId": "5b98a120-0523-4c15-98e8-622832a671b0",
+                      "rootFolder": "Tables"
+                    }
+                  }
+                },
+                "type": "LakehouseTable",
+                "schema": [],
+                "typeProperties": {
+                  "table": "customer_data"
+                }
+              }
+            },
+            "sink": {
+              "type": "JsonSink",
+              "storeSettings": {
+                "type": "LakehouseWriteSettings",
+                "maxConcurrentConnections": 15,
+                "copyBehavior": "PreserveHierarchy",
+                "blockSizeInMB": 50
+              },
+              "formatSettings": {
+                "type": "JsonWriteSettings",
+                "filePattern": "setOfObjects"
+              },
+              "datasetSettings": {
+                "annotations": [],
+                "linkedService": {
+                  "name": "SinkLakehouse_Test",
+                  "properties": {
+                    "annotations": [],
+                    "type": "Lakehouse",
+                    "typeProperties": {
+                      "workspaceId": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+                      "artifactId": "6f2063f8-424f-4c22-918b-59629e0356f4",
+                      "rootFolder": "Files"
+                    }
+                  }
+                },
+                "type": "Json",
+                "typeProperties": {
+                  "location": {
+                    "type": "LakehouseLocation",
+                    "fileName": "customer_export.json",
+                    "folderPath": "processed_data"
+                  },
+                  "compression": {
+                    "type": "ZipDeflate",
+                    "level": "Optimal"
+                  }
+                },
+                "schema": {}
+              }
+            },
+            "enableStaging": false,
+            "translator": {
+              "type": "TabularTranslator",
+              "typeConversion": true,
+              "typeConversionSettings": {
+                "allowDataTruncation": true,
+                "treatBooleanAsNumber": false
+              }
+            }
+          }
+        },
+        "pipeline_parameters": {
+          "Environment": {
+            "type": "string",
+            "defaultValue": "production",
+            "description": "Environment setting"
+          }
+        },
+        "pipeline_variables": {
+          "ExportStatus": {
+            "type": "string",
+            "defaultValue": "Starting",
+            "description": "Current export status"
+          }
+        },
+        "annotations": ["FromJSON", "TableToFiles", "Production"],
+        "description": "Copy activity from table to files with compression"
+      }
+    },
+
+    "3_lakehouse_copy_activity_helper_table_mode": {
+      "tool": "create_lakehouse_copy_activity",
+      "description": "Create lakehouse copy using helper function for table-to-table",
+      "parameters": {
+        "workspace_id": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+        "pipeline_name": "LakehouseCopy_TableMode",
+        "source_lakehouse_name": "SourceLakehouse_Test",
+        "source_lakehouse_id": "5b98a120-0523-4c15-98e8-622832a671b0",
+        "source_table_name": "sales_data",
+        "sink_lakehouse_name": "SinkLakehouse_Test",
+        "sink_lakehouse_id": "6f2063f8-424f-4c22-918b-59629e0356f4",
+        "sink_table_name": "processed_sales",
+        "sink_mode": "table",
+        "table_action": "Append",
+        "timestamp_as_of": "2025-07-26T02:00:00.000Z",
+        "version_as_of": 1,
+        "description": "Helper function for table-to-table copy with time travel"
+      }
+    },
+
+    "4_lakehouse_copy_activity_helper_file_mode": {
+      "tool": "create_lakehouse_copy_activity",
+      "description": "Create lakehouse copy using helper function for table-to-files",
+      "parameters": {
+        "workspace_id": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+        "pipeline_name": "LakehouseCopy_FileMode",
+        "source_lakehouse_name": "SourceLakehouse_Test",
+        "source_lakehouse_id": "5b98a120-0523-4c15-98e8-622832a671b0",
+        "source_table_name": "customer_segments",
+        "sink_lakehouse_name": "SinkLakehouse_Test",
+        "sink_lakehouse_id": "6f2063f8-424f-4c22-918b-59629e0356f4",
+        "sink_table_name": "customer_export",
+        "sink_mode": "file",
+        "file_name": "customers_export.json",
+        "folder_path": "exports/daily",
+        "file_format": "Json",
+        "description": "Helper function for table-to-files export"
+      }
+    },
+
+    "5_advanced_copy_with_custom_settings": {
+      "tool": "create_copy_data_activity_from_json",
+      "description": "Advanced copy with custom translator, mappings, and format settings",
+      "parameters": {
+        "workspace_id": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+        "pipeline_name": "AdvancedCopy_CustomSettings",
+        "copy_activity_json": {
+          "name": "AdvancedCopy_WithMappings",
+          "description": "Advanced copy with column mappings and custom settings",
+          "type": "Copy",
+          "policy": {
+            "timeout": "1.00:00:00",
+            "retry": 2,
+            "retryIntervalInSeconds": 60,
+            "secureOutput": false,
+            "secureInput": false
+          },
+          "typeProperties": {
+            "source": {
+              "type": "LakehouseTableSource",
+              "datasetSettings": {
+                "annotations": [],
+                "linkedService": {
+                  "name": "SourceLakehouse_Test",
+                  "properties": {
+                    "annotations": [],
+                    "type": "Lakehouse",
+                    "typeProperties": {
+                      "workspaceId": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+                      "artifactId": "5b98a120-0523-4c15-98e8-622832a671b0",
+                      "rootFolder": "Tables"
+                    }
+                  }
+                },
+                "type": "LakehouseTable",
+                "schema": [],
+                "typeProperties": {
+                  "table": "raw_transactions"
+                }
+              }
+            },
+            "sink": {
+              "type": "LakehouseTableSink",
+              "tableActionOption": "Overwrite",
+              "datasetSettings": {
+                "annotations": [],
+                "linkedService": {
+                  "name": "SinkLakehouse_Test",
+                  "properties": {
+                    "annotations": [],
+                    "type": "Lakehouse",
+                    "typeProperties": {
+                      "workspaceId": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+                      "artifactId": "6f2063f8-424f-4c22-918b-59629e0356f4",
+                      "rootFolder": "Tables"
+                    }
+                  }
+                },
+                "type": "LakehouseTable",
+                "schema": [],
+                "typeProperties": {
+                  "table": "clean_transactions"
+                }
+              }
+            },
+            "enableStaging": true,
+            "translator": {
+              "type": "TabularTranslator",
+              "columnMappings": {
+                "transaction_id": "trans_id",
+                "customer_id": "cust_id",
+                "product_id": "prod_id",
+                "amount": "sale_amount",
+                "transaction_date": "sale_date"
+              },
+              "typeConversion": true,
+              "typeConversionSettings": {
+                "allowDataTruncation": false,
+                "treatBooleanAsNumber": false,
+                "dateTimeFormat": "yyyy-MM-dd HH:mm:ss",
+                "dateTimeOffsetFormat": "yyyy-MM-dd HH:mm:ss zzz"
+              }
+            }
+          }
+        },
+        "pipeline_parameters": {
+          "ProcessingDate": {
+            "type": "string",
+            "defaultValue": "2025-07-26",
+            "description": "Date for processing filter"
+          },
+          "BatchSize": {
+            "type": "int",
+            "defaultValue": 10000,
+            "description": "Batch processing size"
+          }
+        },
+        "pipeline_variables": {
+          "ProcessingStartTime": {
+            "type": "string",
+            "defaultValue": "",
+            "description": "Processing start timestamp"
+          },
+          "RecordsProcessed": {
+            "type": "int", 
+            "defaultValue": 0,
+            "description": "Number of records processed"
+          }
+        },
+        "annotations": ["Advanced", "CustomMappings", "Staging", "Production"],
+        "concurrency": 2,
+        "folder": {"name": "Advanced/CopyActivities"},
+        "description": "Advanced copy with column mappings and staging enabled"
+      }
+    }
+  },
+
+  "template_patterns": {
+    "lakehouse_connection_structure": {
+      "linkedService": {
+        "name": "LAKEHOUSE_DISPLAY_NAME",
+        "properties": {
+          "annotations": [],
+          "type": "Lakehouse",
+          "typeProperties": {
+            "workspaceId": "WORKSPACE_ID",
+            "artifactId": "LAKEHOUSE_ARTIFACT_ID",
+            "rootFolder": "Tables_or_Files"
+          }
+        }
+      }
+    },
+    "dataset_settings_table": {
+      "annotations": [],
+      "linkedService": "LINKED_SERVICE_OBJECT",
+      "type": "LakehouseTable",
+      "schema": [],
+      "typeProperties": {
+        "table": "TABLE_NAME"
+      }
+    },
+    "dataset_settings_files": {
+      "annotations": [],
+      "linkedService": "LINKED_SERVICE_OBJECT", 
+      "type": "Json_or_Csv_or_Parquet",
+      "typeProperties": {
+        "location": {
+          "type": "LakehouseLocation",
+          "fileName": "FILE_NAME",
+          "folderPath": "FOLDER_PATH"
+        },
+        "compression": {
+          "type": "ZipDeflate_or_None",
+          "level": "Optimal"
+        }
+      },
+      "schema": {}
+    }
+  },
+
+  "tool_comparison": {
+    "create_copy_data_activity_from_json": {
+      "best_for": "Maximum flexibility and exact Fabric compatibility",
+      "pros": ["Supports any current/future connection type", "Exact Fabric JSON structure", "All advanced options available"],
+      "cons": ["Requires JSON knowledge", "More complex for simple scenarios"],
+      "use_when": "Need exact control, advanced features, or new connection types"
+    },
+    "create_lakehouse_copy_activity": {
+      "best_for": "Simple lakehouse-to-lakehouse scenarios",
+      "pros": ["Easy to use", "Parameter-based", "Built-in best practices"],
+      "cons": ["Limited to lakehouse connections", "Fewer customization options"],
+      "use_when": "Simple lakehouse copies, beginners, common scenarios"
+    }
+  },
+
+  "usage_notes": {
+    "json_structure": "The copy_activity_json must follow exact Fabric structure with 'source', 'sink', 'translator' in typeProperties",
+    "connection_types": "Current examples show Lakehouse, but structure supports SQL, Synapse, Blob, etc. with different linkedService configurations",
+    "advanced_features": "JSON approach supports timestampAsOf, versionAsOf, compression, custom mappings, staging, and all Fabric options",
+    "modular_design": "Helper functions can be used to build JSON programmatically for complex scenarios",
+    "future_extensibility": "New connection types only require new JSON templates, no code changes needed"
+  }
+} 

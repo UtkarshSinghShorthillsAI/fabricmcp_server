@@ -1,0 +1,62 @@
+{
+  "timestamp": "2025-07-28T09:33:22.453864",
+  "workspace_id": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+  "source_lakehouse": {
+    "id": "5b98a120-0523-4c15-98e8-622832a671b0",
+    "name": "SourceLakehouse_Test_20250725_123834"
+  },
+  "sink_lakehouse": {
+    "id": "6f2063f8-424f-4c22-918b-59629e0356f4",
+    "name": "SinkLakehouse_Test_20250725_123834"
+  },
+  "tests": {
+    "exact_table_to_table": {
+      "status": "success",
+      "pipeline_id": "ec1ef9af-e1fa-4655-888d-0e6ae06816de",
+      "pipeline_name": "ExactTableToTable_20250728_093322",
+      "copy_activity": {
+        "name": "Copy_TableToTable_Exact",
+        "source_type": "LakehouseTableSource",
+        "sink_type": "LakehouseTableSink",
+        "source_table": "sales_transactions",
+        "sink_table": "processed_sales"
+      },
+      "message": "Exact table-to-table copy created successfully"
+    },
+    "exact_table_to_files": {
+      "status": "success",
+      "pipeline_id": "4c094bff-b2d2-4d62-907c-791bcd5126fb",
+      "pipeline_name": "ExactTableToFiles_20250728_093338",
+      "copy_activity": {
+        "name": "Copy_TableToFiles_Exact",
+        "source_type": "LakehouseTableSource",
+        "sink_type": "JsonSink",
+        "source_table": "customer_data",
+        "sink_file": "processed_data/customer_export.json",
+        "compression": "ZipDeflate"
+      },
+      "message": "Exact table-to-files copy created successfully"
+    },
+    "json_validation": {
+      "status": "success",
+      "validation_results": [
+        {
+          "test": "table_to_table_structure",
+          "source_valid": true,
+          "sink_valid": true,
+          "has_linked_service": true
+        },
+        {
+          "test": "table_to_files_structure",
+          "source_valid": true,
+          "sink_valid": true,
+          "has_compression": true,
+          "has_location": true
+        }
+      ],
+      "overall_valid": true,
+      "message": "JSON structure validation completed"
+    }
+  },
+  "overall_status": "all_passed"
+}

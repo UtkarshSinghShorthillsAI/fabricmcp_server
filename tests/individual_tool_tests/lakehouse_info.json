@@ -1,0 +1,14 @@
+{
+  "created_at": "2025-07-25T12:38:34.166588",
+  "workspace_id": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+  "source": {
+    "id": "5b98a120-0523-4c15-98e8-622832a671b0",
+    "name": "SourceLakehouse_Test_20250725_123834",
+    "status": "created"
+  },
+  "sink": {
+    "id": "6f2063f8-424f-4c22-918b-59629e0356f4",
+    "name": "SinkLakehouse_Test_20250725_123834",
+    "status": "created"
+  }
+}

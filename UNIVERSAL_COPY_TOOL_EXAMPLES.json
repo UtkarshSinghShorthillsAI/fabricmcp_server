@@ -1,0 +1,100 @@
+{
+  "sharepoint_to_lakehouse_table": {
+    "workspace_id": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+    "pipeline_name": "SharePoint_to_Lakehouse_Pipeline",
+    "source_type": "SharePoint",
+    "source_config": {
+      "connection_id": "29099f29-20ae-4998-bd13-007289b3f7e3",
+      "list_name": "WebPartGallery",
+      "query": "$filter=Status eq 'Active'"
+    },
+    "sink_type": "Lakehouse",
+    "sink_config": {
+      "lakehouse_name": "SinkLakehouse_Test",
+      "workspace_id": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+      "artifact_id": "6f2063f8-424f-4c22-918b-59629e0356f4",
+      "root_folder": "Files",
+      "file_config": {
+        "folder_path": "Output",
+        "file_name": "data_from_sharepoint",
+        "file_format": "DelimitedText"
+      }
+    },
+    "activity_config": {
+      "activity_name": "Copy SharePoint Data",
+      "description": "Copy data from SharePoint list to Lakehouse",
+      "enable_schema_mapping": true,
+      "translator": {
+        "mappings": [
+          {
+            "source": {
+              "name": "Title",
+              "type": "String"
+            }
+          },
+          {
+            "source": {
+              "name": "Status",
+              "type": "String"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "s3_wildcard_to_lakehouse": {
+    "workspace_id": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+    "pipeline_name": "S3_Wildcard_to_Lakehouse_Pipeline",
+    "source_type": "S3",
+    "source_config": {
+      "connection_id": "ea2ef352-5072-4c31-a500-5fab9c03c706",
+      "bucket_name": "google-photos-pipeline",
+      "source_type": "BinarySource",
+      "format_type": "Binary",
+      "file_path_config": {
+        "path_type": "wildcard",
+        "wildcard_folder_path": "wildcard_folder",
+        "wildcard_file_name": "wildcard_file"
+      },
+      "modified_datetime_start": "2025-07-28T00:00:00.000Z",
+      "modified_datetime_end": "2025-07-27T00:03:00.000Z"
+    },
+    "sink_type": "Lakehouse",
+    "sink_config": {
+      "lakehouse_name": "SinkLakehouse_Test",
+      "workspace_id": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+      "artifact_id": "6f2063f8-424f-4c22-918b-59629e0356f4",
+      "root_folder": "Files",
+      "file_config": {
+        "folder_path": "Output",
+        "file_name": "s3_sink",
+        "file_format": "Binary"
+      }
+    }
+  },
+  "lakehouse_table_to_s3": {
+    "workspace_id": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+    "pipeline_name": "Lakehouse_Table_to_S3_Pipeline",
+    "source_type": "Lakehouse",
+    "source_config": {
+      "lakehouse_name": "AdvancedDataLakehouse",
+      "workspace_id": "2bb31c24-2c1f-467a-bffd-3a37a2c0ad27",
+      "artifact_id": "0440d283-3ccf-478c-9d26-53145c1e6802",
+      "root_folder": "Tables",
+      "table_config": {
+        "table_name": "fact_sales_enriched"
+      }
+    },
+    "sink_type": "S3",
+    "sink_config": {
+      "connection_id": "ea2ef352-5072-4c31-a500-5fab9c03c706",
+      "bucket_name": "google-photos-pipeline",
+      "sink_type": "JsonSink",
+      "format_type": "Json",
+      "file_config": {
+        "folder_path": "exports",
+        "file_name": "from_lakehouse"
+      }
+    }
+  }
+}
