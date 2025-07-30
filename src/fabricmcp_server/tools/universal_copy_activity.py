@@ -14,8 +14,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 from enum import Enum
 
-from fastmcp import FastMCP
-from pydantic import BaseModel, Field, model_validator
+from fastmcp import FastMCP, Context
+from pydantic import BaseModel, Field, model_validator, field_validator
 
 from ..fabric_models import ItemDefinitionForCreate, CreateItemRequest, DefinitionPart
 from ..sessions import get_session_fabric_client
@@ -288,6 +288,173 @@ class LakehouseSource(BaseModel):
         return base_config
 
 
+# TODO: MongoDB Atlas Support (Commented out due to connection issues)
+# Will be re-enabled once MongoDB Atlas connectivity is resolved
+#
+# class MongoDbAtlasSource(BaseModel):
+#     """MongoDB Atlas as source - supports collections with flexible querying"""
+#     connection_id: str = Field(..., description="Connection ID for MongoDB Atlas cluster")
+#     database_name: str = Field(..., description="Database name in MongoDB Atlas")
+#     collection_name: str = Field(..., description="Collection name to read from")
+#     
+#     # Query options
+#     filter: Optional[str] = Field(None, description="MongoDB query filter (JSON string). Example: '{\"status\": \"active\"}'")
+#     
+#     # Cursor methods for query optimization  
+#     project: Optional[str] = Field(None, description="Projection fields (JSON string). Example: '{\"_id\": 1, \"name\": 1}'")
+#     sort: Optional[str] = Field(None, description="Sort specification (JSON string). Example: '{\"created_date\": -1}'")
+#     limit: Optional[int] = Field(None, description="Maximum number of documents to return")
+#     skip: Optional[int] = Field(None, description="Number of documents to skip")
+#     
+#     # Performance options
+#     batch_size: int = Field(100, description="Number of documents to return in each batch")
+#     
+#     def to_copy_activity_source(self) -> Dict[str, Any]:
+#         """Generate Copy Activity source JSON for MongoDB Atlas"""
+#         # Implementation temporarily disabled
+#         pass
+
+
+class HttpSource(BaseModel):
+    """HTTP endpoint as source - supports any HTTP endpoint for data retrieval"""
+    connection_id: str = Field(..., description="Connection ID for HTTP endpoint")
+    relative_url: Optional[str] = Field(None, description="Relative URL path to append to base URL")
+    
+    # HTTP method and configuration
+    request_method: str = Field("GET", description="HTTP method: GET or POST")
+    request_body: Optional[str] = Field(None, description="Request body for POST requests")
+    
+    # Headers and authentication
+    additional_headers: Optional[str] = Field(None, description="Additional HTTP headers as string")
+    
+    # Performance and timeout settings
+    request_timeout: str = Field("00:02:40", description="HTTP request timeout (hh:mm:ss)")
+    max_concurrent_connections: int = Field(1, description="Maximum concurrent connections")
+    
+    # Format settings for delimited text
+    column_delimiter: str = Field(",", description="Column delimiter for delimited text")
+    escape_char: str = Field("\\", description="Escape character")
+    first_row_as_header: bool = Field(True, description="First row as header")
+    quote_char: str = Field('"', description="Quote character")
+    
+    @field_validator('request_method')
+    @classmethod 
+    def validate_request_method(cls, v):
+        if v not in ["GET", "POST"]:
+            raise ValueError("request_method must be 'GET' or 'POST'")
+        return v
+    
+    def to_copy_activity_source(self) -> Dict[str, Any]:
+        """Generate Copy Activity source JSON for HTTP endpoint"""
+        
+        source_config = {
+            "type": "DelimitedTextSource",
+            "storeSettings": {
+                "type": "HttpReadSettings",
+                "maxConcurrentConnections": self.max_concurrent_connections,
+                "requestMethod": self.request_method,
+                "requestTimeout": self.request_timeout
+            },
+            "formatSettings": {
+                "type": "DelimitedTextReadSettings"
+            },
+            "datasetSettings": {
+                "annotations": [],
+                "type": "DelimitedText",
+                "typeProperties": {
+                    "location": {
+                        "type": "HttpServerLocation"
+                    },
+                    "columnDelimiter": self.column_delimiter,
+                    "escapeChar": self.escape_char,
+                    "firstRowAsHeader": self.first_row_as_header,
+                    "quoteChar": self.quote_char
+                },
+                "schema": [],
+                "externalReferences": {
+                    "connection": self.connection_id
+                }
+            }
+        }
+        
+        # Add relative URL if specified
+        if self.relative_url:
+            source_config["datasetSettings"]["typeProperties"]["location"]["relativeUrl"] = self.relative_url
+            
+        # Add request body for POST requests
+        if self.request_body and self.request_method == "POST":
+            source_config["storeSettings"]["requestBody"] = self.request_body
+            
+        # Add additional headers
+        if self.additional_headers:
+            source_config["storeSettings"]["additionalHeaders"] = self.additional_headers
+            
+        return source_config
+
+
+class RestSource(BaseModel):
+    """REST API as source - specifically for RESTful APIs with JSON responses"""
+    connection_id: str = Field(..., description="Connection ID for REST API endpoint")
+    relative_url: Optional[str] = Field(None, description="Relative URL path to REST resource")
+    
+    # HTTP method and configuration
+    request_method: str = Field("GET", description="HTTP method: GET or POST")
+    request_body: Optional[str] = Field(None, description="Request body for POST requests")
+    
+    # Headers and authentication
+    additional_headers: Optional[str] = Field(None, description="Additional HTTP headers as string")
+    
+    # Pagination support - simplified to match Fabric's actual structure
+    support_rfc5988: str = Field("true", description="Support RFC5988 pagination")
+    
+    # Performance and timeout settings
+    http_request_timeout: str = Field("00:01:40", description="HTTP request timeout (hh:mm:ss)")
+    request_interval: str = Field("00.00:00:00.010", description="Time between requests for pagination")
+    
+    @field_validator('request_method')
+    @classmethod
+    def validate_request_method(cls, v):
+        if v not in ["GET", "POST"]:
+            raise ValueError("request_method must be 'GET' or 'POST'")
+        return v
+    
+    def to_copy_activity_source(self) -> Dict[str, Any]:
+        """Generate Copy Activity source JSON for REST API"""
+        
+        source_config = {
+            "type": "RestSource",
+            "httpRequestTimeout": self.http_request_timeout,
+            "requestInterval": self.request_interval,
+            "requestMethod": self.request_method,
+            "paginationRules": {
+                "supportRFC5988": self.support_rfc5988
+            },
+            "datasetSettings": {
+                "annotations": [],
+                "type": "RestResource",
+                "typeProperties": {},
+                "schema": [],
+                "externalReferences": {
+                    "connection": self.connection_id
+                }
+            }
+        }
+        
+        # Add relative URL if specified
+        if self.relative_url:
+            source_config["datasetSettings"]["typeProperties"]["relativeUrl"] = self.relative_url
+            
+        # Add request body for POST requests
+        if self.request_body and self.request_method == "POST":
+            source_config["requestBody"] = self.request_body
+            
+        # Add additional headers
+        if self.additional_headers:
+            source_config["additionalHeaders"] = self.additional_headers
+            
+        return source_config
+
+
 # =============================================================================
 # SINK MODELS - Individual models for each sink type  
 # =============================================================================
@@ -467,6 +634,100 @@ class S3Sink(BaseModel):
         return base_config
 
 
+# TODO: MongoDB Atlas Support (Commented out due to connection issues)
+# Will be re-enabled once MongoDB Atlas connectivity is resolved
+#
+# class MongoDbAtlasSink(BaseModel):
+#     """MongoDB Atlas as sink - supports collections with flexible write options"""
+#     connection_id: str = Field(..., description="Connection ID for MongoDB Atlas cluster")
+#     database_name: str = Field(..., description="Database name in MongoDB Atlas")
+#     collection_name: str = Field(..., description="Collection name to write to")
+#     
+#     # Write behavior options
+#     write_behavior: str = Field("insert", description="Write behavior: 'insert' or 'upsert'")
+#     
+#     # Performance options
+#     write_batch_size: int = Field(10000, description="Size of documents to write in each batch")
+#     write_batch_timeout: str = Field("00:30:00", description="Timeout for batch write operations")
+#     
+#     def to_copy_activity_sink(self) -> Dict[str, Any]:
+#         """Generate Copy Activity sink JSON for MongoDB Atlas"""
+#         # Implementation temporarily disabled
+#         pass
+
+
+class RestSink(BaseModel):
+    """REST API as sink - supports POST/PUT/PATCH to REST endpoints"""
+    connection_id: str = Field(..., description="Connection ID for REST API endpoint")
+    relative_url: Optional[str] = Field(None, description="Relative URL path to REST resource")
+    
+    # HTTP method and configuration
+    request_method: str = Field("POST", description="HTTP method: POST, PUT, or PATCH")
+    
+    # Headers and authentication
+    additional_headers: Optional[str] = Field(None, description="Additional HTTP headers as string")
+    
+    # Performance and timeout settings
+    http_request_timeout: str = Field("00:05:00", description="HTTP request timeout (hh:mm:ss)")
+    request_interval: int = Field(10, description="Interval between requests in milliseconds (10-60000)")
+    write_batch_size: int = Field(10000, description="Number of records per batch")
+    
+    # Compression options
+    http_compression_type: str = Field("none", description="HTTP compression: 'none' or 'gzip'")
+    
+    @field_validator('request_method')
+    @classmethod
+    def validate_request_method(cls, v):
+        if v not in ["POST", "PUT", "PATCH"]:
+            raise ValueError("request_method must be 'POST', 'PUT', or 'PATCH'")
+        return v
+        
+    @field_validator('http_compression_type')
+    @classmethod
+    def validate_compression_type(cls, v):
+        if v not in ["none", "gzip"]:
+            raise ValueError("http_compression_type must be 'none' or 'gzip'")
+        return v
+        
+    @field_validator('request_interval')
+    @classmethod
+    def validate_request_interval(cls, v):
+        if not (10 <= v <= 60000):
+            raise ValueError("request_interval must be between 10 and 60000 milliseconds")
+        return v
+    
+    def to_copy_activity_sink(self) -> Dict[str, Any]:
+        """Generate Copy Activity sink JSON for REST API"""
+        
+        sink_config = {
+            "type": "RestSink",
+            "httpRequestTimeout": self.http_request_timeout,
+            "requestInterval": self.request_interval,
+            "requestMethod": self.request_method,
+            "writeBatchSize": self.write_batch_size,
+            "httpCompressionType": self.http_compression_type,
+            "datasetSettings": {
+                "annotations": [],
+                "type": "RestResource",
+                "typeProperties": {},
+                "schema": [],
+                "externalReferences": {
+                    "connection": self.connection_id
+                }
+            }
+        }
+        
+        # Add relative URL if specified
+        if self.relative_url:
+            sink_config["datasetSettings"]["typeProperties"]["relativeUrl"] = self.relative_url
+            
+        # Add additional headers
+        if self.additional_headers:
+            sink_config["additionalHeaders"] = self.additional_headers
+            
+        return sink_config
+
+
 # =============================================================================
 # COPY ACTIVITY CONFIGURATION
 # =============================================================================
@@ -507,7 +768,7 @@ class CopyActivityConfig(BaseModel):
 # =============================================================================
 
 async def create_universal_copy_pipeline_impl(
-    ctx,
+    ctx: Context,
     workspace_id: str,
     pipeline_name: str,
     source_type: str,
@@ -523,9 +784,9 @@ async def create_universal_copy_pipeline_impl(
     Args:
         workspace_id: Target workspace ID
         pipeline_name: Name for the pipeline
-        source_type: Type of source (SharePoint, S3, Lakehouse)
+        source_type: Type of source (SharePoint, S3, Lakehouse, HTTP, REST)
         source_config: Source configuration dictionary
-        sink_type: Type of sink (Lakehouse, S3)
+        sink_type: Type of sink (Lakehouse, S3, REST)
         sink_config: Sink configuration dictionary  
         activity_config: Optional copy activity configuration
         description: Optional pipeline description
@@ -541,16 +802,28 @@ async def create_universal_copy_pipeline_impl(
             source = S3Source(**source_config)
         elif source_type.lower() == "lakehouse":
             source = LakehouseSource(**source_config)
+        elif source_type.lower() == "http":
+            source = HttpSource(**source_config)
+        elif source_type.lower() == "rest":
+            source = RestSource(**source_config)
+        # TODO: Temporarily disabled MongoDB Atlas support
+        # elif source_type.lower() == "mongodbatlas" or source_type.lower() == "mongodb_atlas":
+        #     source = MongoDbAtlasSource(**source_config)
         else:
-            raise ValueError(f"Unsupported source type: {source_type}")
+            raise ValueError(f"Unsupported source type: {source_type}. Supported: SharePoint, S3, Lakehouse, HTTP, REST")
             
         # Parse sink configuration  
         if sink_type.lower() == "lakehouse":
             sink = LakehouseSink(**sink_config)
         elif sink_type.lower() == "s3":
             sink = S3Sink(**sink_config)
+        elif sink_type.lower() == "rest":
+            sink = RestSink(**sink_config)
+        # TODO: Temporarily disabled MongoDB Atlas support
+        # elif sink_type.lower() == "mongodbatlas" or sink_type.lower() == "mongodb_atlas":
+        #     sink = MongoDbAtlasSink(**sink_config)
         else:
-            raise ValueError(f"Unsupported sink type: {sink_type}")
+            raise ValueError(f"Unsupported sink type: {sink_type}. Supported: Lakehouse, S3, REST")
             
         # Parse activity configuration
         if activity_config:
@@ -642,7 +915,7 @@ def register_universal_copy_tools(app: FastMCP):
     
     @app.tool()
     async def create_universal_copy_pipeline(
-        ctx,
+        ctx: Context,
         workspace_id: str,
         pipeline_name: str,
         source_type: str,
