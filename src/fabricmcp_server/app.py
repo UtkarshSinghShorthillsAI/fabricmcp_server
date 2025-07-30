@@ -89,6 +89,10 @@ def register_tools() -> None:
         from .tools import lakehouses
         lakehouses.register_lakehouse_tools(mcp_app)
         logger.info("Successfully registered 'lakehouses' tools.")
+
+        from .tools import universal_copy_activity
+        universal_copy_activity.register_universal_copy_tools(mcp_app)
+        logger.info("Successfully registered 'universal_copy_activity' tools.")
     except Exception as exc:
         logger.exception(f"Error during tool registration: {exc}")
 
