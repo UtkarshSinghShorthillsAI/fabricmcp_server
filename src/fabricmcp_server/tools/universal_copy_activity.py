@@ -9,6 +9,7 @@ This module implements the user's desired modularity:
 """
 
 import json
+import logging
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
@@ -19,6 +20,8 @@ from pydantic import BaseModel, Field, model_validator, field_validator
 
 from ..fabric_models import ItemDefinitionForCreate, CreateItemRequest, DefinitionPart
 from ..sessions import get_session_fabric_client
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -287,32 +290,6 @@ class LakehouseSource(BaseModel):
             
         return base_config
 
-
-# TODO: MongoDB Atlas Support (Commented out due to connection issues)
-# Will be re-enabled once MongoDB Atlas connectivity is resolved
-#
-# class MongoDbAtlasSource(BaseModel):
-#     """MongoDB Atlas as source - supports collections with flexible querying"""
-#     connection_id: str = Field(..., description="Connection ID for MongoDB Atlas cluster")
-#     database_name: str = Field(..., description="Database name in MongoDB Atlas")
-#     collection_name: str = Field(..., description="Collection name to read from")
-#     
-#     # Query options
-#     filter: Optional[str] = Field(None, description="MongoDB query filter (JSON string). Example: '{\"status\": \"active\"}'")
-#     
-#     # Cursor methods for query optimization  
-#     project: Optional[str] = Field(None, description="Projection fields (JSON string). Example: '{\"_id\": 1, \"name\": 1}'")
-#     sort: Optional[str] = Field(None, description="Sort specification (JSON string). Example: '{\"created_date\": -1}'")
-#     limit: Optional[int] = Field(None, description="Maximum number of documents to return")
-#     skip: Optional[int] = Field(None, description="Number of documents to skip")
-#     
-#     # Performance options
-#     batch_size: int = Field(100, description="Number of documents to return in each batch")
-#     
-#     def to_copy_activity_source(self) -> Dict[str, Any]:
-#         """Generate Copy Activity source JSON for MongoDB Atlas"""
-#         # Implementation temporarily disabled
-#         pass
 
 
 class HttpSource(BaseModel):
@@ -634,26 +611,6 @@ class S3Sink(BaseModel):
         return base_config
 
 
-# TODO: MongoDB Atlas Support (Commented out due to connection issues)
-# Will be re-enabled once MongoDB Atlas connectivity is resolved
-#
-# class MongoDbAtlasSink(BaseModel):
-#     """MongoDB Atlas as sink - supports collections with flexible write options"""
-#     connection_id: str = Field(..., description="Connection ID for MongoDB Atlas cluster")
-#     database_name: str = Field(..., description="Database name in MongoDB Atlas")
-#     collection_name: str = Field(..., description="Collection name to write to")
-#     
-#     # Write behavior options
-#     write_behavior: str = Field("insert", description="Write behavior: 'insert' or 'upsert'")
-#     
-#     # Performance options
-#     write_batch_size: int = Field(10000, description="Size of documents to write in each batch")
-#     write_batch_timeout: str = Field("00:30:00", description="Timeout for batch write operations")
-#     
-#     def to_copy_activity_sink(self) -> Dict[str, Any]:
-#         """Generate Copy Activity sink JSON for MongoDB Atlas"""
-#         # Implementation temporarily disabled
-#         pass
 
 
 class RestSink(BaseModel):
@@ -806,9 +763,6 @@ async def create_universal_copy_pipeline_impl(
             source = HttpSource(**source_config)
         elif source_type.lower() == "rest":
             source = RestSource(**source_config)
-        # TODO: Temporarily disabled MongoDB Atlas support
-        # elif source_type.lower() == "mongodbatlas" or source_type.lower() == "mongodb_atlas":
-        #     source = MongoDbAtlasSource(**source_config)
         else:
             raise ValueError(f"Unsupported source type: {source_type}. Supported: SharePoint, S3, Lakehouse, HTTP, REST")
             
@@ -819,9 +773,6 @@ async def create_universal_copy_pipeline_impl(
             sink = S3Sink(**sink_config)
         elif sink_type.lower() == "rest":
             sink = RestSink(**sink_config)
-        # TODO: Temporarily disabled MongoDB Atlas support
-        # elif sink_type.lower() == "mongodbatlas" or sink_type.lower() == "mongodb_atlas":
-        #     sink = MongoDbAtlasSink(**sink_config)
         else:
             raise ValueError(f"Unsupported sink type: {sink_type}. Supported: Lakehouse, S3, REST")
             
@@ -912,29 +863,6 @@ async def create_universal_copy_pipeline_impl(
 
 def register_universal_copy_tools(app: FastMCP):
     """Register universal copy activity tools with the MCP app"""
-    
-    @app.tool()
-    async def create_universal_copy_pipeline(
-        ctx: Context,
-        workspace_id: str,
-        pipeline_name: str,
-        source_type: str,
-        source_config: Dict[str, Any],
-        sink_type: str, 
-        sink_config: Dict[str, Any],
-        activity_config: Optional[Dict[str, Any]] = None,
-        description: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Universal copy pipeline tool that accepts any source + sink combination.
-        
-        Supported source types: SharePoint, S3, Lakehouse
-        Supported sink types: Lakehouse, S3
-        
-        The source_config and sink_config should contain the specific configuration
-        for each source/sink type according to their Pydantic models.
-        """
-        return await create_universal_copy_pipeline_impl(
-            ctx, workspace_id, pipeline_name, source_type, source_config,
-            sink_type, sink_config, activity_config, description
-        ) 
+    logger.info("Registering Universal Copy Activity tools...")
+    app.tool(name="create_universal_copy_pipeline")(create_universal_copy_pipeline_impl)
+    logger.info("Universal Copy Activity tools registration complete.") 
