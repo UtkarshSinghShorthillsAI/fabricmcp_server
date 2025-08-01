@@ -431,6 +431,325 @@ class RestSource(BaseModel):
             
         return source_config
 
+class FileSystemSource(BaseModel):
+    """Local file system source configuration"""
+    connection_id: str = Field(..., description="Connection ID for file system (on-premises gateway)")
+    folder_path: Optional[str] = Field(None, description="Path to the source folder")
+    file_name: Optional[str] = Field(None, description="Specific file name or wildcard pattern")
+    file_format: str = Field("DelimitedText", description="File format: DelimitedText, JSON, Parquet, Binary")
+    recursive: bool = Field(True, description="Read files recursively from subfolders")
+    wildcard_folder_path: Optional[str] = Field(None, description="Wildcard pattern for folder filtering")
+    wildcard_file_name: Optional[str] = Field(None, description="Wildcard pattern for file filtering")
+    file_list_path: Optional[str] = Field(None, description="Path to file containing list of files to copy")
+    delete_files_after_completion: bool = Field(False, description="Delete source files after successful copy")
+    modified_datetime_start: Optional[str] = Field(None, description="Filter files by last modified start time (ISO format)")
+    modified_datetime_end: Optional[str] = Field(None, description="Filter files by last modified end time (ISO format)")
+    max_concurrent_connections: Optional[int] = Field(None, description="Maximum concurrent connections")
+    
+    # New fields based on user's manual JSON
+    enable_partition_discovery: bool = Field(False, description="Enable automatic partition discovery")
+    partition_root_path: Optional[str] = Field(None, description="Root path for partition discovery")
+    add_file_name_column: bool = Field(False, description="Add file name as additional column")
+    file_name_column_name: str = Field("file_name", description="Name for the file name column")
+    
+    # Delimited text specific properties
+    column_delimiter: str = Field(",", description="Column delimiter for delimited text")
+    escape_char: str = Field("\\", description="Escape character for delimited text")
+    quote_char: str = Field("\"", description="Quote character for delimited text")
+    first_row_as_header: bool = Field(True, description="Treat first row as header")
+
+    def to_copy_activity_source(self) -> Dict[str, Any]:
+        """Convert to copy activity source JSON structure"""
+        source_config = {
+            "type": f"{self.file_format}Source",
+            "storeSettings": {
+                "type": "FileServerReadSettings",
+                "recursive": self.recursive
+            },
+            "formatSettings": {
+                "type": f"{self.file_format}ReadSettings"
+            },
+            "datasetSettings": {
+                "annotations": [],
+                "type": self.file_format,
+                "typeProperties": {
+                    "location": {
+                        "type": "FileServerLocation"
+                    }
+                },
+                "schema": [],
+                "externalReferences": {
+                    "connection": self.connection_id
+                }
+            }
+        }
+
+        # Add additional columns if requested (like file name)
+        if self.add_file_name_column:
+            source_config["additionalColumns"] = [
+                {
+                    "name": self.file_name_column_name,
+                    "value": "$$FILEPATH"
+                }
+            ]
+
+        # Add location properties
+        location = source_config["datasetSettings"]["typeProperties"]["location"]
+        if self.folder_path:
+            location["folderPath"] = self.folder_path
+        if self.file_name:
+            location["fileName"] = self.file_name
+
+        # Add store settings
+        store_settings = source_config["storeSettings"]
+        if self.wildcard_folder_path:
+            store_settings["wildcardFolderPath"] = self.wildcard_folder_path
+        if self.wildcard_file_name:
+            store_settings["wildcardFileName"] = self.wildcard_file_name
+        if self.file_list_path:
+            store_settings["fileListPath"] = self.file_list_path
+        if self.delete_files_after_completion:
+            store_settings["deleteFilesAfterCompletion"] = self.delete_files_after_completion
+        if self.modified_datetime_start:
+            store_settings["modifiedDatetimeStart"] = self.modified_datetime_start
+        if self.modified_datetime_end:
+            store_settings["modifiedDatetimeEnd"] = self.modified_datetime_end
+        if self.max_concurrent_connections:
+            store_settings["maxConcurrentConnections"] = self.max_concurrent_connections
+        if self.enable_partition_discovery:
+            store_settings["enablePartitionDiscovery"] = self.enable_partition_discovery
+        if self.partition_root_path:
+            store_settings["partitionRootPath"] = self.partition_root_path
+
+        # Add format-specific properties to typeProperties
+        if self.file_format == "DelimitedText":
+            source_config["datasetSettings"]["typeProperties"].update({
+                "columnDelimiter": self.column_delimiter,
+                "escapeChar": self.escape_char,
+                "quoteChar": self.quote_char,
+                "firstRowAsHeader": self.first_row_as_header
+            })
+
+        return source_config
+
+class MySqlSource(BaseModel):
+    """MySQL database source configuration (via on-premises gateway)"""
+    connection_id: str = Field(..., description="Connection ID for MySQL database (on-premises gateway)")
+    
+    # Query options - either table_name OR query, not both
+    table_name: Optional[str] = Field(None, description="Table name to read from (can include backticks like `table_name`)")
+    query: Optional[str] = Field(None, description="Custom SQL query to execute")
+    
+    # Additional columns support
+    additional_columns: Optional[List[Dict[str, str]]] = Field(None, description="Additional columns with computed values like $$COLUMN:sum")
+    
+    # These fields are not needed for the JSON generation but kept for completeness
+    server: Optional[str] = Field(None, description="MySQL server hostname or IP address (not used in copy activity JSON)")
+    port: Optional[int] = Field(3306, description="MySQL server port number (not used in copy activity JSON)")
+    database: Optional[str] = Field(None, description="MySQL database name (not used in copy activity JSON)")
+    username: Optional[str] = Field(None, description="MySQL username (not used in copy activity JSON)")
+    password: Optional[str] = Field(None, description="MySQL password (not used in copy activity JSON)")
+
+    def to_copy_activity_source(self) -> Dict[str, Any]:
+        """Convert to copy activity source JSON structure based on user's manual JSON"""
+        source_config = {
+            "type": "MySqlSource",
+            "datasetSettings": {
+                "annotations": [],
+                "type": "MySqlTable",
+                "schema": [],
+                "externalReferences": {
+                    "connection": self.connection_id
+                }
+            }
+        }
+        
+        # Add additional columns if specified (like $$COLUMN:sum)
+        if self.additional_columns:
+            source_config["additionalColumns"] = self.additional_columns
+        
+        # Add table name to typeProperties if specified
+        if self.table_name:
+            source_config["datasetSettings"]["typeProperties"] = {
+                "tableName": self.table_name
+            }
+        
+        # Add query at root level if specified (not in datasetSettings)
+        if self.query:
+            source_config["query"] = self.query
+        
+        return source_config
+
+# Google Cloud Storage Models (S3-compatible API)
+class GoogleCloudStoragePathType(str, Enum):
+    FILE_PATH = "file_path"
+    WILDCARD = "wildcard" 
+    PREFIX = "prefix"
+    LIST_OF_FILES = "list_of_files"
+
+class GoogleCloudStorageFilePathConfig(BaseModel):
+    """Google Cloud Storage file path configuration"""
+    path_type: GoogleCloudStoragePathType = GoogleCloudStoragePathType.FILE_PATH
+    
+    # For FILE_PATH
+    bucket_name: Optional[str] = Field(None, description="GCS bucket name")
+    object_key: Optional[str] = Field(None, description="Object key (file path) in bucket")
+    
+    # For WILDCARD
+    wildcard_folder_path: Optional[str] = Field(None, description="Folder path with wildcards")
+    wildcard_file_name: Optional[str] = Field(None, description="File name with wildcards")
+    
+    # For PREFIX
+    prefix: Optional[str] = Field(None, description="Prefix for GCS key names")
+    
+    # For LIST_OF_FILES
+    file_list_path: Optional[str] = Field(None, description="Path to text file containing list of files")
+
+class GoogleCloudStorageSource(BaseModel):
+    """Google Cloud Storage as source configuration"""
+    connection_id: str = Field(..., description="Google Cloud Storage connection ID")
+    bucket_name: str = Field(..., description="GCS bucket name")
+    
+    # File path configuration
+    file_path_config: GoogleCloudStorageFilePathConfig = Field(default_factory=GoogleCloudStorageFilePathConfig)
+    
+    # Format and processing options
+    file_format: str = Field("DelimitedText", description="File format: DelimitedText, JSON, Parquet, Avro, Binary")
+    recursive: bool = Field(True, description="Read files recursively from subfolders")
+    delete_files_after_completion: bool = Field(False, description="Delete files after successful copy")
+    
+    # Performance and filtering
+    max_concurrent_connections: int = Field(1, description="Maximum concurrent connections")
+    modified_datetime_start: Optional[str] = Field(None, description="Filter files by last modified start time")
+    modified_datetime_end: Optional[str] = Field(None, description="Filter files by last modified end time")
+    enable_partition_discovery: bool = Field(False, description="Parse partitions from file path")
+    partition_root_path: Optional[str] = Field(None, description="Partition root path for discovery")
+    
+    # Additional columns support
+    additional_columns: Optional[List[Dict[str, str]]] = Field(None, description="Additional columns with computed values")
+
+    def to_copy_activity_source(self) -> Dict[str, Any]:
+        """Convert to copy activity source JSON structure matching Fabric UI exactly"""
+        # Determine source type based on file format
+        source_type = f"{self.file_format}Source"
+        format_settings = {
+            "type": f"{self.file_format}ReadSettings"
+        }
+
+        # Build storeSettings
+        store_settings = {
+            "type": "GoogleCloudStorageReadSettings",
+            "maxConcurrentConnections": self.max_concurrent_connections
+        }
+
+        # Add recursive only for certain path types
+        path_config = self.file_path_config
+        if path_config.path_type in [GoogleCloudStoragePathType.FILE_PATH, GoogleCloudStoragePathType.WILDCARD, GoogleCloudStoragePathType.PREFIX]:
+            store_settings["recursive"] = self.recursive
+
+        # Add delete files after completion if specified
+        if self.delete_files_after_completion:
+            store_settings["deleteFilesAfterCompletion"] = self.delete_files_after_completion
+
+        # Add time filters if specified
+        if self.modified_datetime_start:
+            store_settings["modifiedDatetimeStart"] = self.modified_datetime_start
+        if self.modified_datetime_end:
+            store_settings["modifiedDatetimeEnd"] = self.modified_datetime_end
+
+        # Add partition discovery
+        if self.enable_partition_discovery:
+            store_settings["enablePartitionDiscovery"] = True
+            if self.partition_root_path:
+                store_settings["partitionRootPath"] = self.partition_root_path
+
+        # Add file path configuration based on type
+        if path_config.path_type == GoogleCloudStoragePathType.WILDCARD:
+            if path_config.wildcard_folder_path:
+                store_settings["wildcardFolderPath"] = path_config.wildcard_folder_path
+            if path_config.wildcard_file_name:
+                store_settings["wildcardFileName"] = path_config.wildcard_file_name
+        elif path_config.path_type == GoogleCloudStoragePathType.PREFIX:
+            if path_config.prefix:
+                store_settings["prefix"] = path_config.prefix
+        elif path_config.path_type == GoogleCloudStoragePathType.LIST_OF_FILES:
+            if path_config.file_list_path:
+                store_settings["fileListPath"] = path_config.file_list_path
+
+        source_config = {
+            "type": source_type,
+            "storeSettings": store_settings,
+            "formatSettings": format_settings
+        }
+
+        # Add additional columns if specified
+        if self.additional_columns:
+            source_config["additionalColumns"] = self.additional_columns
+
+        # Build dataset settings - location logic depends on path type
+        location = {
+            "type": "GoogleCloudStorageLocation",
+            "bucketName": self.bucket_name
+        }
+
+        # Only add folderPath/fileName for FILE_PATH type or LIST_OF_FILES
+        if path_config.path_type == GoogleCloudStoragePathType.FILE_PATH and path_config.object_key:
+            # Split object key into folder path and file name
+            if '/' in path_config.object_key:
+                folder_path = '/'.join(path_config.object_key.split('/')[:-1])
+                file_name = path_config.object_key.split('/')[-1]
+                location["folderPath"] = folder_path
+                location["fileName"] = file_name
+            else:
+                location["fileName"] = path_config.object_key
+        elif path_config.path_type == GoogleCloudStoragePathType.LIST_OF_FILES and path_config.file_list_path:
+            # For list of files, add folderPath if specified
+            if '/' in path_config.file_list_path:
+                folder_path = '/'.join(path_config.file_list_path.split('/')[:-1])
+                location["folderPath"] = folder_path
+
+        # Build type properties based on format
+        if self.file_format == "DelimitedText":
+            dataset_type = "DelimitedText"
+            type_properties = {
+                "location": location,
+                "columnDelimiter": ",",
+                "escapeChar": "\\",
+                "firstRowAsHeader": True,
+                "quoteChar": "\""
+            }
+        elif self.file_format == "JSON":
+            dataset_type = "Json"
+            type_properties = {
+                "location": location
+            }
+        elif self.file_format == "Parquet":
+            dataset_type = "Parquet"
+            type_properties = {
+                "location": location
+            }
+        elif self.file_format == "Avro":
+            dataset_type = "Avro"
+            type_properties = {
+                "location": location
+            }
+        else:  # Binary
+            dataset_type = "Binary"
+            type_properties = {
+                "location": location
+            }
+
+        source_config["datasetSettings"] = {
+            "annotations": [],
+            "type": dataset_type,
+            "schema": [],
+            "typeProperties": type_properties,
+            "externalReferences": {
+                "connection": self.connection_id
+            }
+        }
+
+        return source_config
 
 # =============================================================================
 # SINK MODELS - Individual models for each sink type  
@@ -489,14 +808,9 @@ class LakehouseSink(BaseModel):
                 dataset_type = "DelimitedText"
                 store_settings_type = "LakehouseWriteSettings"
         
+        # Base config - storeSettings only for file sinks, not table sinks
         base_config = {
             "type": sink_type,
-            "storeSettings": {
-                "type": store_settings_type,
-                "maxConcurrentConnections": self.max_concurrent_connections,
-                "copyBehavior": self.copy_behavior,
-                "blockSizeInMB": self.block_size_mb
-            },
             "datasetSettings": {
                 "annotations": [],
                 "linkedService": {
@@ -515,6 +829,15 @@ class LakehouseSink(BaseModel):
                 "schema": []
             }
         }
+        
+        # Add storeSettings only for file sinks (not table sinks)
+        if self.root_folder == "Files":
+            base_config["storeSettings"] = {
+                "type": store_settings_type,
+                "maxConcurrentConnections": self.max_concurrent_connections,
+                "copyBehavior": self.copy_behavior,
+                "blockSizeInMB": self.block_size_mb
+            }
         
         # Add type properties and table-specific settings
         if self.root_folder == "Tables" and self.table_config:
@@ -614,48 +937,18 @@ class S3Sink(BaseModel):
 
 
 class RestSink(BaseModel):
-    """REST API as sink - supports POST/PUT/PATCH to REST endpoints"""
-    connection_id: str = Field(..., description="Connection ID for REST API endpoint")
-    relative_url: Optional[str] = Field(None, description="Relative URL path to REST resource")
-    
-    # HTTP method and configuration
-    request_method: str = Field("POST", description="HTTP method: POST, PUT, or PATCH")
-    
-    # Headers and authentication
-    additional_headers: Optional[str] = Field(None, description="Additional HTTP headers as string")
-    
-    # Performance and timeout settings
+    """REST API sink configuration"""
+    connection_id: str = Field(..., description="Connection ID for REST API")
+    relative_url: Optional[str] = Field(None, description="Relative URL for the REST endpoint")
+    request_method: str = Field("POST", description="HTTP method: GET, POST, PUT, DELETE")
     http_request_timeout: str = Field("00:05:00", description="HTTP request timeout (hh:mm:ss)")
     request_interval: int = Field(10, description="Interval between requests in milliseconds (10-60000)")
-    write_batch_size: int = Field(10000, description="Number of records per batch")
-    
-    # Compression options
+    write_batch_size: int = Field(10000, description="Number of records to write in each batch")
     http_compression_type: str = Field("none", description="HTTP compression: 'none' or 'gzip'")
-    
-    @field_validator('request_method')
-    @classmethod
-    def validate_request_method(cls, v):
-        if v not in ["POST", "PUT", "PATCH"]:
-            raise ValueError("request_method must be 'POST', 'PUT', or 'PATCH'")
-        return v
-        
-    @field_validator('http_compression_type')
-    @classmethod
-    def validate_compression_type(cls, v):
-        if v not in ["none", "gzip"]:
-            raise ValueError("http_compression_type must be 'none' or 'gzip'")
-        return v
-        
-    @field_validator('request_interval')
-    @classmethod
-    def validate_request_interval(cls, v):
-        if not (10 <= v <= 60000):
-            raise ValueError("request_interval must be between 10 and 60000 milliseconds")
-        return v
-    
+    additional_headers: Optional[str] = Field(None, description="Additional HTTP headers as string")
+
     def to_copy_activity_sink(self) -> Dict[str, Any]:
-        """Generate Copy Activity sink JSON for REST API"""
-        
+        """Convert to copy activity sink JSON structure"""
         sink_config = {
             "type": "RestSink",
             "httpRequestTimeout": self.http_request_timeout,
@@ -674,16 +967,225 @@ class RestSink(BaseModel):
             }
         }
         
-        # Add relative URL if specified
         if self.relative_url:
             sink_config["datasetSettings"]["typeProperties"]["relativeUrl"] = self.relative_url
-            
-        # Add additional headers
         if self.additional_headers:
             sink_config["additionalHeaders"] = self.additional_headers
             
         return sink_config
 
+class FileSystemSink(BaseModel):
+    """Local file system sink configuration"""
+    connection_id: str = Field(..., description="Connection ID for file system (on-premises gateway)")
+    folder_path: Optional[str] = Field(None, description="Path to the destination folder")
+    file_name: Optional[str] = Field(None, description="Destination file name")
+    file_format: str = Field("DelimitedText", description="File format: DelimitedText, JSON, Parquet, Binary")
+    copy_behavior: str = Field("PreserveHierarchy", description="Copy behavior: PreserveHierarchy, FlattenHierarchy, MergeFiles")
+    max_concurrent_connections: Optional[int] = Field(None, description="Maximum concurrent connections")
+    
+    # New fields based on user's manual JSON  
+    file_extension: str = Field(".txt", description="File extension for output files")
+    
+    # Delimited text specific properties
+    column_delimiter: str = Field(",", description="Column delimiter for delimited text")
+    escape_char: str = Field("\\", description="Escape character for delimited text")
+    quote_char: str = Field("\"", description="Quote character for delimited text")
+    first_row_as_header: bool = Field(True, description="Treat first row as header")
+
+    def to_copy_activity_sink(self) -> Dict[str, Any]:
+        """Convert to copy activity sink JSON structure"""
+        sink_config = {
+            "type": f"{self.file_format}Sink",
+            "storeSettings": {
+                "type": "FileServerWriteSettings",
+                "copyBehavior": self.copy_behavior
+            },
+            "formatSettings": {
+                "type": f"{self.file_format}WriteSettings"
+            },
+            "datasetSettings": {
+                "annotations": [],
+                "type": self.file_format,
+                "typeProperties": {
+                    "location": {
+                        "type": "FileServerLocation"
+                    }
+                },
+                "schema": [],
+                "externalReferences": {
+                    "connection": self.connection_id
+                }
+            }
+        }
+
+        # Add location properties
+        location = sink_config["datasetSettings"]["typeProperties"]["location"]
+        if self.folder_path:
+            location["folderPath"] = self.folder_path
+        if self.file_name:
+            location["fileName"] = self.file_name
+
+        # Add store settings
+        if self.max_concurrent_connections:
+            sink_config["storeSettings"]["maxConcurrentConnections"] = self.max_concurrent_connections
+
+        # Add format-specific settings and properties
+        if self.file_format == "DelimitedText":
+            # Add file extension to formatSettings
+            sink_config["formatSettings"]["fileExtension"] = self.file_extension
+            
+            # Add delimited text properties to typeProperties
+            sink_config["datasetSettings"]["typeProperties"].update({
+                "columnDelimiter": self.column_delimiter,
+                "escapeChar": self.escape_char,
+                "quoteChar": self.quote_char,
+                "firstRowAsHeader": self.first_row_as_header
+            })
+        elif self.file_format == "JSON":
+            sink_config["formatSettings"]["filePattern"] = "setOfObjects"
+
+        return sink_config
+
+# Google Cloud Storage Models (S3-compatible API)
+class GoogleCloudStorageSink(BaseModel):
+    """Google Cloud Storage as sink configuration"""
+    connection_id: str = Field(..., description="Google Cloud Storage connection ID")
+    bucket_name: str = Field(..., description="GCS bucket name")
+    folder_path: Optional[str] = Field(None, description="Folder path in bucket")
+    file_name: Optional[str] = Field(None, description="File name")
+    
+    # File format and compression
+    file_format: str = Field("DelimitedText", description="File format: DelimitedText, JSON, Parquet, Avro, Binary")
+    compression_codec: Optional[str] = Field(None, description="Compression codec: gzip, snappy, etc.")
+    
+    # JSON specific settings
+    json_file_pattern: str = Field("setOfObjects", description="JSON file pattern: setOfObjects or arrayOfObjects")
+    
+    # Write settings
+    max_concurrent_connections: int = Field(1, description="Maximum concurrent connections")
+    copy_behavior: str = Field("PreserveHierarchy", description="Copy behavior: PreserveHierarchy, FlattenHierarchy, MergeFiles")
+    block_size_mb: int = Field(50, description="Block size in MB")
+    
+    # Metadata settings
+    metadata: Optional[List[Dict[str, str]]] = Field(None, description="Custom metadata for files")
+
+    def to_copy_activity_sink(self) -> Dict[str, Any]:
+        """Convert to copy activity sink JSON structure matching Fabric UI exactly"""
+        # Determine sink type based on file format with correct capitalization
+        if self.file_format == "JSON":
+            sink_type = "JsonSink"  # Use JsonSink, not JSONSink
+        else:
+            sink_type = f"{self.file_format}Sink"
+
+        # Build storeSettings
+        store_settings = {
+            "type": "GoogleCloudStorageWriteSettings",
+            "maxConcurrentConnections": self.max_concurrent_connections,
+            "copyBehavior": self.copy_behavior
+        }
+
+        # Add block size if not default
+        if self.block_size_mb != 50:
+            store_settings["blockSizeInMB"] = self.block_size_mb
+
+        # Add metadata if specified
+        if self.metadata:
+            store_settings["metadata"] = self.metadata
+
+        sink_config = {
+            "type": sink_type,
+            "storeSettings": store_settings
+        }
+
+        # Add formatSettings based on format (but NOT for Binary)
+        if self.file_format == "DelimitedText":
+            sink_config["formatSettings"] = {
+                "type": "DelimitedTextWriteSettings",
+                "fileExtension": ".txt"
+            }
+        elif self.file_format == "JSON":
+            sink_config["formatSettings"] = {
+                "type": "JsonWriteSettings",
+                "filePattern": self.json_file_pattern  # arrayOfObjects or setOfObjects
+            }
+        elif self.file_format == "Parquet":
+            sink_config["formatSettings"] = {
+                "type": "ParquetWriteSettings"
+            }
+        elif self.file_format == "Avro":
+            sink_config["formatSettings"] = {
+                "type": "AvroWriteSettings"
+            }
+        # Binary format does NOT have formatSettings
+
+        # Build location
+        location = {
+            "type": "GoogleCloudStorageLocation",
+            "bucketName": self.bucket_name
+        }
+
+        # Add folder path and file name if specified
+        if self.folder_path:
+            location["folderPath"] = self.folder_path
+        if self.file_name:
+            location["fileName"] = self.file_name
+
+        # Build type properties based on format
+        if self.file_format == "DelimitedText":
+            dataset_type = "DelimitedText"
+            type_properties = {
+                "location": location,
+                "columnDelimiter": ",",
+                "escapeChar": "\\",
+                "firstRowAsHeader": True,
+                "quoteChar": "\""
+            }
+        elif self.file_format == "JSON":
+            dataset_type = "Json"
+            type_properties = {
+                "location": location
+            }
+        elif self.file_format == "Parquet":
+            dataset_type = "Parquet"
+            type_properties = {
+                "location": location
+            }
+        elif self.file_format == "Avro":
+            dataset_type = "Avro"
+            type_properties = {
+                "location": location
+            }
+        else:  # Binary
+            dataset_type = "Binary"
+            type_properties = {
+                "location": location
+            }
+
+        # Add compression if specified (not in location but as separate property)
+        if self.compression_codec:
+            type_properties["compression"] = {
+                "type": self.compression_codec
+            }
+
+        # Build dataset settings with correct schema format
+        dataset_settings = {
+            "annotations": [],
+            "type": dataset_type,
+            "typeProperties": type_properties,
+            "externalReferences": {
+                "connection": self.connection_id
+            }
+        }
+
+        # Set schema format based on type
+        if self.file_format == "JSON":
+            dataset_settings["schema"] = {}  # Empty object for JSON, not array
+        else:
+            dataset_settings["schema"] = []  # Array for other formats
+
+        sink_config["datasetSettings"] = dataset_settings
+
+        return sink_config
 
 # =============================================================================
 # COPY ACTIVITY CONFIGURATION
@@ -741,9 +1243,9 @@ async def create_universal_copy_pipeline_impl(
     Args:
         workspace_id: Target workspace ID
         pipeline_name: Name for the pipeline
-        source_type: Type of source (SharePoint, S3, Lakehouse, HTTP, REST)
+        source_type: Type of source (SharePoint, S3, Lakehouse, HTTP, REST, FileSystem, MySQL)
         source_config: Source configuration dictionary
-        sink_type: Type of sink (Lakehouse, S3, REST)
+        sink_type: Type of sink (Lakehouse, S3, REST, FileSystem)
         sink_config: Sink configuration dictionary  
         activity_config: Optional copy activity configuration
         description: Optional pipeline description
@@ -763,8 +1265,14 @@ async def create_universal_copy_pipeline_impl(
             source = HttpSource(**source_config)
         elif source_type.lower() == "rest":
             source = RestSource(**source_config)
+        elif source_type.lower() == "filesystem":
+            source = FileSystemSource(**source_config)
+        elif source_type.lower() == "mysql":
+            source = MySqlSource(**source_config)
+        elif source_type.lower() == "googlecloudstorage":
+            source = GoogleCloudStorageSource(**source_config)
         else:
-            raise ValueError(f"Unsupported source type: {source_type}. Supported: SharePoint, S3, Lakehouse, HTTP, REST")
+            raise ValueError(f"Unsupported source type: {source_type}. Supported: SharePoint, S3, Lakehouse, HTTP, REST, FileSystem, MySQL, GoogleCloudStorage")
             
         # Parse sink configuration  
         if sink_type.lower() == "lakehouse":
@@ -773,8 +1281,12 @@ async def create_universal_copy_pipeline_impl(
             sink = S3Sink(**sink_config)
         elif sink_type.lower() == "rest":
             sink = RestSink(**sink_config)
+        elif sink_type.lower() == "filesystem":
+            sink = FileSystemSink(**sink_config)
+        elif sink_type.lower() == "googlecloudstorage":
+            sink = GoogleCloudStorageSink(**sink_config)
         else:
-            raise ValueError(f"Unsupported sink type: {sink_type}. Supported: Lakehouse, S3, REST")
+            raise ValueError(f"Unsupported sink type: {sink_type}. Supported: Lakehouse, S3, REST, FileSystem, GoogleCloudStorage")
             
         # Parse activity configuration
         if activity_config:
