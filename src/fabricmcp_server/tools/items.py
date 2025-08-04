@@ -12,6 +12,17 @@ from ..app import get_session_fabric_client, job_status_store
 
 logger = logging.getLogger(__name__)
 
+def _process_fabric_response(resp: httpx.Response):
+    """
+    Return the raw body (or headers if body is empty) for any 2xx response.
+    For 4xx/5xx, raise ToolError with the raw body so the caller sees exactly
+    what Fabric returned.
+    """
+    if resp.status_code >= 400:
+        raise ToolError(resp.text or f"HTTP {resp.status_code}")
+    return resp.text if resp.text else dict(resp.headers)
+
+
 async def list_fabric_items_impl(
     ctx: Context,
     workspace_id: str = Field(..., description="The ID of the Fabric workspace.")
@@ -60,7 +71,13 @@ async def create_fabric_item_impl(
         
         if isinstance(response, ItemEntity):
             logger.info(f"Successfully created item with ID: {response.id}")
-            return response
+            return response.model_dump(by_alias=True)
+
+        if isinstance(response, httpx.Response):
+            return _process_fabric_response(response)
+
+        raise ToolError(str(response))
+
         
         raise ToolError(f"Unexpected response type from API: {type(response)}")
 
