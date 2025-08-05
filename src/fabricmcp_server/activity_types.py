@@ -1,7 +1,7 @@
 # fabric_mcp_server/activity_types.py
 from __future__ import annotations
 from typing import List, Optional, Literal, Dict, Any, Union, Annotated
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # ---------------- Common pieces ----------------
 
@@ -56,11 +56,17 @@ class TeamsActivity(BaseActivity):
 
 class CopyProperties(BaseModel):
     enableStaging: Optional[bool] = False
-    # Future: source, sink, translator, etc.
+
+    model_config = {"extra": "allow"}   # NEW  ← keeps source/sink/translator
 
 class CopyActivity(BaseActivity):
     type: Literal["Copy"]
     typeProperties: CopyProperties
+    inputs: Optional[List[Any]] = None   # NEW  ← pass-through
+    outputs: Optional[List[Any]] = None  # NEW
+
+    model_config = {"extra": "allow"}   # preserves any future top-level keys
+
 
 # ---------------- RefreshDataflow ----------------
 
@@ -217,6 +223,91 @@ class FabricSparkJobDefinitionActivity(BaseActivity):
     type: Literal["FabricSparkJobDefinition"]
     typeProperties: FabricSparkJobDefinitionProperties
 
+# ---------- NEW ACTIVITIES ----------
+
+# Fail
+class FailProperties(BaseModel):
+    message: Optional[str] = None
+    errorCode: Optional[str] = None
+    model_config = {"extra": "allow"}
+
+class FailActivity(BaseActivity):
+    type: Literal["Fail"]
+    typeProperties: FailProperties
+
+# WebActivity
+class WebActivity(BaseActivity):
+    type: Literal["WebActivity"]
+    typeProperties: Dict[str, Any] = Field(default_factory=dict)
+
+# WebHook
+class WebHookProperties(BaseModel):
+    method: Optional[str] = None
+    timeout: Optional[str] = None
+    model_config = {"extra": "allow"}
+
+class WebHookActivity(BaseActivity):
+    type: Literal["WebHook"]
+    typeProperties: WebHookProperties
+
+# Office365Outlook
+class OfficeInputs(BaseModel):
+    method: Optional[str] = None
+    path: Optional[str] = None
+    body: Optional[Dict[str, Any]] = None
+    model_config = {"extra": "allow"}
+
+class Office365OutlookProperties(BaseModel):
+    inputs: OfficeInputs
+    model_config = {"extra": "allow"}
+
+class Office365OutlookActivity(BaseActivity):
+    type: Literal["Office365Outlook"]
+    typeProperties: Office365OutlookProperties
+
+# AppendVariable
+class AppendVariableProperties(BaseModel):
+    variableName: str
+    value: Optional[Any] = None
+    model_config = {"extra": "allow"}
+
+class AppendVariableActivity(BaseActivity):
+    type: Literal["AppendVariable"]
+    typeProperties: AppendVariableProperties
+
+# ---------- Switch ----------
+class SwitchCase(BaseModel):
+    value: Any
+    activities: List["Activity"] = Field(default_factory=list)
+    model_config = {"extra": "allow"}
+
+class SwitchProperties(BaseModel):
+    # canonical form
+    expression: Optional["Expression"] = None
+    # accept LLM's shorthand; field name is on_, aliased to JSON key "on"
+    on_: Optional[str] = Field(None, alias="on")
+
+    cases: List[SwitchCase] = Field(default_factory=list)
+    defaultActivities: List["Activity"] = Field(default_factory=list)
+
+    model_config = {
+        "extra": "allow",
+        "populate_by_name": True,
+    }
+
+    @model_validator(mode="before")
+    @classmethod
+    def coerce_on_to_expression(cls, data: Dict[str, Any]):
+        """Convert {'on': '@expr'} to {'expression': {...}} so Fabric accepts it."""
+        if "on" in data and "expression" not in data:
+            data["expression"] = {"type": "Expression", "value": data.pop("on")}
+        return data
+
+class SwitchActivity(BaseActivity):
+    type: Literal["Switch"]
+    typeProperties: SwitchProperties
+
+
 # ---------------- Generic fallback ----------------
 
 # ---------- Generic fallback ----------
@@ -244,6 +335,12 @@ Activity = Annotated[
         InvokePipelineActivity,
         DatabricksNotebookActivity,
         FabricSparkJobDefinitionActivity,
+        FailActivity,
+        WebActivity,
+        WebHookActivity,
+        Office365OutlookActivity,
+        AppendVariableActivity,
+        SwitchActivity,
         GenericActivity,  # keep last
     ],
     Field(discriminator="type"),
@@ -253,3 +350,4 @@ Activity = Annotated[
 IfConditionProperties.model_rebuild()
 ForEachProperties.model_rebuild()
 UntilProperties.model_rebuild()
+SwitchProperties.model_rebuild()
