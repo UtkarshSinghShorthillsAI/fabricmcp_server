@@ -56,7 +56,9 @@ class TeamsActivity(BaseActivity):
 
 class CopyProperties(BaseModel):
     enableStaging: Optional[bool] = False
-    # Future: source, sink, translator, etc.
+    source: Dict[str, Any]
+    sink: Dict[str, Any]
+    translator: Optional[Dict[str, Any]] = None
 
 class CopyActivity(BaseActivity):
     type: Literal["Copy"]
