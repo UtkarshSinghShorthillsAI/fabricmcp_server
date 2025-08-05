@@ -203,3 +203,16 @@ class FabricApiClient:
         path = f"/v1/workspaces/{workspace_id}/lakehouses/{lakehouse_id}/tables/{table_name}/load"
         headers = await self._get_auth_header("https://api.fabric.microsoft.com/.default")
         return await self._make_request("POST", f"{self._base_url}{path}", headers=headers, json_body=payload)
+
+    # --- NEW: Generic API Methods for Connections ---
+    async def get_connections(self) -> Optional[Dict[str, Any]]:
+        """Gets all connections in the tenant using the Fabric connections API."""
+        path = "/v1/connections"
+        headers = await self._get_auth_header("https://api.fabric.microsoft.com/.default")
+        return await self._make_request("GET", f"{self._base_url}{path}", headers=headers)
+
+    async def get_workspace_connections(self, workspace_id: str) -> Optional[Dict[str, Any]]:
+        """Gets connections for a specific workspace (if such endpoint exists)."""
+        path = f"/v1/workspaces/{workspace_id}/connections"
+        headers = await self._get_auth_header("https://api.fabric.microsoft.com/.default")
+        return await self._make_request("GET", f"{self._base_url}{path}", headers=headers, allow_404=True)
