@@ -2,7 +2,7 @@
 from __future__ import annotations
 from typing import List, Optional, Literal, Dict, Any, Union, Annotated
 from pydantic import BaseModel, Field, model_validator
-
+from .copy_activity_schemas import SourceConfig, SinkConfig, TabularTranslator, DatasetReference
 # ---------------- Common pieces ----------------
 
 class DependencyCondition(BaseModel):
@@ -55,17 +55,18 @@ class TeamsActivity(BaseActivity):
 # ---------------- Copy ----------------
 
 class CopyProperties(BaseModel):
-    enableStaging: Optional[bool] = False
-
-    model_config = {"extra": "allow"}   # NEW  ← keeps source/sink/translator
+    """Defines the high-level, user-friendly configuration for a Copy activity."""
+    source: SourceConfig
+    sink: SinkConfig
+    translator: Optional[TabularTranslator] = None
+    enableStaging: bool = False
 
 class CopyActivity(BaseActivity):
+    """The final, robust Copy Activity model."""
     type: Literal["Copy"]
     typeProperties: CopyProperties
-    inputs: Optional[List[Any]] = None   # NEW  ← pass-through
-    outputs: Optional[List[Any]] = None  # NEW
-
-    model_config = {"extra": "allow"}   # preserves any future top-level keys
+    inputs: List[DatasetReference]
+    outputs: List[DatasetReference]
 
 
 # ---------------- RefreshDataflow ----------------
