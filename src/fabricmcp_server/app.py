@@ -97,7 +97,11 @@ def register_tools() -> None:
         from .tools import connections
         connections.register_connection_tools(mcp_app)
         logger.info("Successfully registered 'connections' tools.")
-        
+
+        from .tools import datasets
+        datasets.register_dataset_tools(mcp_app)
+        logger.info("Successfully registered 'datasets' tools.")
+
     except Exception as exc:
         logger.exception(f"Error during tool registration: {exc}")
 
