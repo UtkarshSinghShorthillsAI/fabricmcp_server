@@ -78,3 +78,17 @@ class LoadTableRequest(BaseModel):
     recursive: bool = False
     format_options: FormatOptions = Field(FormatOptions(), alias="formatOptions")
     model_config = {"populate_by_name": True}
+
+# --- Models for Connections ---
+
+class ConnectionDetails(BaseModel):
+    """Represents the comprehensive details of a Fabric connection."""
+    id: str
+    display_name: str
+    connection_type: str
+    connectivity_type: str
+    credential_type: str
+    connection_path: Optional[str] = None
+    privacy_level: str
+    allow_gateway_usage: bool
+    gateway_id: Optional[str] = None
