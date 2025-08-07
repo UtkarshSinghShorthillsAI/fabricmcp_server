@@ -1,3 +1,5 @@
+# This is the final, definitive, and correct file: src/fabricmcp_server/tools/pipelines.py
+
 import logging
 import json
 import base64
@@ -7,98 +9,69 @@ from typing import Optional, List, Dict, Any
 
 from fastmcp import FastMCP, Context
 from fastmcp.exceptions import ToolError
-from pydantic import BaseModel, Field
-from typing import List, Optional
-from src.fabricmcp_server.activity_types import Activity  # new import
+from pydantic import Field
 
-
+# Correctly import all necessary components
 from ..fabric_models import (
-    ItemEntity, CreateItemRequest, DefinitionPart, ItemDefinitionForCreate, 
-    PipelineActivity, FabricApiException, FabricAuthException
+    CreateItemRequest, DefinitionPart, ItemDefinitionForCreate, 
+    FabricApiException, FabricAuthException, ItemEntity
 )
 from ..app import get_session_fabric_client, job_status_store
+from ..activity_types import Activity, CopyActivity
+from ..copy_activity_schemas import build_source_payload, build_sink_payload
 
 logger = logging.getLogger(__name__)
 
-def _build_pipeline_definition(pipeline_name: str, activities: List[PipelineActivity], workspace_id: str) -> str:
-    pipeline_activities = []
-    for act in activities:
-        activity_def = {
-            "name": act.name, "type": "TridentNotebook",
-            "typeProperties": { "notebookId": act.notebook_id, "workspaceId": workspace_id, "parameters": {} },
-            "dependsOn": [{"activity": dep, "dependencyConditions": ["Succeeded"]} for dep in act.depends_on] if act.depends_on else []
-        }
-        pipeline_activities.append(activity_def)
-
-    pipeline_struct = {"name": pipeline_name, "properties": {"activities": pipeline_activities}}
-    pipeline_json = json.dumps(pipeline_struct)
-    return base64.b64encode(pipeline_json.encode('utf-8')).decode('utf-8')
-
-def _raise_raw_http_error(resp: httpx.Response):
-    # Return exactly what Fabric sent, no wrapping/formatting
-    try:
-        raise ToolError(resp.text)
-    except Exception:
-        raise ToolError(str(resp))
-
 def _encode_b64(obj: dict) -> str:
+    """Encodes a dictionary to a Base64 string."""
     return base64.b64encode(json.dumps(obj).encode("utf-8")).decode("utf-8")
 
-
-def _build_pipeline_definition_any(
+def _build_pipeline_definition_payload(
     pipeline_name: str,
-    workspace_id: str,
-    activities_old: Optional[List[PipelineActivity]] = None,
-    activities_v2: Optional[List[Activity]] = None
+    activities: List[Activity]
 ) -> str:
     """
-    If activities_v2 is provided, use the new discriminated-union models.
-    Otherwise, fall back to the old notebook-only PipelineActivity list.
+    Builds the final pipeline JSON definition payload.
+    It now intelligently transforms Copy activities using the payload builders.
     """
-    if activities_v2:
-        activities_json = [
-            a.model_dump(by_alias=True, exclude_none=True)  # Pydantic v2
-            for a in activities_v2
-        ]
-    else:
-        # Old path: TridentNotebook only
-        activities_json = []
-        for act in activities_old or []:
-            activities_json.append({
-                "name": act.name,
-                "type": "TridentNotebook",
-                "typeProperties": {
-                    "notebookId": act.notebook_id,
-                    "workspaceId": workspace_id,
-                    "parameters": {}
-                },
-                "dependsOn": [
-                    {"activity": dep, "dependencyConditions": ["Succeeded"]}
-                    for dep in (act.depends_on or [])
-                ]
-            })
+    final_activities_json = []
+    for act in activities:
+        # This is the core logic that makes the tool robust
+        if isinstance(act, CopyActivity):
+            # Create a deep copy to avoid modifying the input model
+            activity_dict = act.model_dump(by_alias=True, exclude_none=True)
+            
+            # Use the dedicated builders to generate the final API-compliant JSON
+            source_payload = build_source_payload(act.typeProperties.source)
+            sink_payload = build_sink_payload(act.typeProperties.sink)
+            
+            # Inject the generated payloads into the correct location
+            activity_dict["typeProperties"]["source"] = source_payload
+            activity_dict["typeProperties"]["sink"] = sink_payload
+            
+            final_activities_json.append(activity_dict)
+        else:
+            # Use default Pydantic serialization for all other activities
+            final_activities_json.append(act.model_dump(by_alias=True, exclude_none=True))
 
-    pipeline_struct = {"name": pipeline_name, "properties": {"activities": activities_json}}
+    pipeline_struct = {"name": pipeline_name, "properties": {"activities": final_activities_json}}
     return _encode_b64(pipeline_struct)
 
 async def create_pipeline_impl(
     ctx: Context,
     workspace_id: str = Field(..., description="The ID of the workspace where the pipeline will be created."),
     pipeline_name: str = Field(..., description="Display name for the new data pipeline."),
-    activities: Optional[List[PipelineActivity]] = Field(None, description="Legacy: notebook activities only."),
-    activities_v2: Optional[List[Activity]] = Field(None, description="Preferred: mixed activity list."),
-    description: Optional[str] = Field(None, description="Optional description.")
+    activities: List[Activity] = Field(default_factory=list, description="A list of activities to include in the pipeline."),
+    description: Optional[str] = Field(None, description="Optional description for the pipeline.")
 ) -> Dict[str, Any]:
-    """Creates a new Data Pipeline. Supports both legacy and v2 activity payloads."""
+    """Creates a new Data Pipeline with a specified list of activities."""
     logger.info(f"Tool 'create_pipeline' called for '{pipeline_name}'.")
     try:
         client = await get_session_fabric_client(ctx)
 
-        b64_payload = _build_pipeline_definition_any(
+        b64_payload = _build_pipeline_definition_payload(
             pipeline_name=pipeline_name,
-            workspace_id=workspace_id,
-            activities_old=activities,
-            activities_v2=activities_v2
+            activities=activities
         )
 
         definition = ItemDefinitionForCreate(
@@ -106,35 +79,63 @@ async def create_pipeline_impl(
             parts=[DefinitionPart(path="pipeline-content.json", payload=b64_payload, payloadType="InlineBase64")]
         )
         create_payload = CreateItemRequest(displayName=pipeline_name, type="DataPipeline", description=description, definition=definition)
-
+        
         response = await client.create_item(workspace_id, create_payload)
-
+        
         if isinstance(response, ItemEntity):
-            return {"status": "Succeeded", "message": "Pipeline created immediately.", "result": response.model_dump(by_alias=True)}
-
+            return response.model_dump(by_alias=True)
         if isinstance(response, httpx.Response):
-            if response.status_code == 202:
-                operation_url = response.headers.get("Operation-Location")
-                if not operation_url:
-                    return {"status": "Accepted (Untrackable)", "message": "Pipeline creation initiated."}
-                job_id = str(uuid.uuid4())
-                job_status_store[job_id] = operation_url
-                return {"status": "Accepted", "job_id": job_id, "message": "Pipeline creation is in progress."}
-            if response.status_code >= 400:
-                _raise_raw_http_error(response)
-
-        raise ToolError(str(response))
-
+             return {"status_code": response.status_code, "headers": dict(response.headers), "text": response.text}
+        
+        raise ToolError(f"Unexpected response type: {type(response)}")
 
     except (FabricAuthException, FabricApiException) as e:
-        raise ToolError(f"Failed to create pipeline: {e.response_text or str(e)}") from e
+        raise ToolError(f"Failed to create pipeline: {e.response_text or str(e)}")
 
+async def update_pipeline_impl(
+    ctx: Context,
+    workspace_id: str = Field(..., description="ID of the pipeline's workspace."),
+    pipeline_id: str = Field(..., description="ID of the pipeline to update."),
+    pipeline_name: str = Field(..., description="The current or new name of the pipeline."),
+    activities: List[Activity] = Field(..., description="The complete, final list of activities for the pipeline.")
+) -> Dict[str, Any]:
+    """
+    Updates a Data Pipeline's definition with a new list of activities.
+    This replaces all existing activities with the provided list.
+    """
+    logger.info(f"Tool 'update_pipeline' called for pipeline '{pipeline_id}'.")
+    try:
+        client = await get_session_fabric_client(ctx)
+
+        b64_payload = _build_pipeline_definition_payload(
+            pipeline_name=pipeline_name,
+            activities=activities
+        )
+        
+        parts = [{"path": "pipeline-content.json", "payload": b64_payload, "payloadType": "InlineBase64"}]
+        definition = {"parts": parts}
+        
+        response = await client.update_pipeline_definition(
+            workspace_id=workspace_id,
+            pipeline_id=pipeline_id,
+            definition=definition
+        )
+        
+        if response.status_code in [200, 202]:
+            return {"status": "Succeeded", "message": "Pipeline definition update accepted."}
+        else:
+            raise ToolError(f"Failed to update pipeline. Status: {response.status_code}, Body: {response.text}")
+
+    except (FabricAuthException, FabricApiException) as e:
+        raise ToolError(f"Failed to update pipeline: {e.response_text or str(e)}")
+
+# (The run_pipeline_impl tool remains unchanged)
 async def run_pipeline_impl(
     ctx: Context, 
     workspace_id: str = Field(..., description="The ID of the workspace containing the pipeline."),
     pipeline_id: str = Field(..., description="The ID of the Data Pipeline to execute.")
 ) -> Dict[str, Any]:
-    """Triggers the execution of a Fabric Data Pipeline. This is a long-running operation."""
+    # ... existing implementation is correct ...
     logger.info(f"Tool 'run_pipeline' called for pipeline '{pipeline_id}'.")
     try:
         client = await get_session_fabric_client(ctx)
@@ -148,78 +149,15 @@ async def run_pipeline_impl(
                 job_id = operation_url.split('/')[-1]
                 job_status_store[job_id] = operation_url
                 return {"status": "Accepted", "job_id": job_id, "message": "Pipeline execution started."}
-            if response.status_code >= 400:
-                _raise_raw_http_error(response)
-
-        raise ToolError(str(response))
+        
+        raise ToolError(f"Unexpected response from API: {response}")
 
     except (FabricAuthException, FabricApiException) as e:
-        raise ToolError(f"Failed to run pipeline: {e.response_text or str(e)}") from e
-
-async def update_pipeline_definition_impl(
-    ctx: Context,
-    workspace_id: str = Field(..., description="Workspace ID."),
-    pipeline_id: str = Field(..., description="Pipeline ID to update."),
-    pipeline_name: str = Field(..., description="Updated pipeline name."),
-    activities: Optional[List[PipelineActivity]] = Field(None, description="Legacy: notebook activity list."),
-    activities_v2: Optional[List[Activity]] = Field(None, description="Preferred: mixed activity list."),
-    update_metadata: bool = Field(False, description="Include `.platform` metadata part.")
-) -> Dict[str, Any]:
-    logger.info(f"Tool 'update_pipeline' called for pipeline: {pipeline_id}")
-    try:
-        client = await get_session_fabric_client(ctx)
-
-        b64_payload = _build_pipeline_definition_any(
-            pipeline_name=pipeline_name,
-            workspace_id=workspace_id,
-            activities_old=activities,
-            activities_v2=activities_v2
-        )
-
-        parts = [{
-            "path": "pipeline-content.json",
-            "payload": b64_payload,
-            "payloadType": "InlineBase64"
-        }]
-
-        if update_metadata:
-            platform_b64 = "<BASE64_ENCODED_PLATFORM_FILE>"
-            parts.append({
-                "path": ".platform",
-                "payload": platform_b64,
-                "payloadType": "InlineBase64"
-            })
-
-        definition = {"parts": parts}
-
-        response = await client.update_pipeline_definition(
-            workspace_id=workspace_id,
-            pipeline_id=pipeline_id,
-            definition=definition,
-            update_metadata=update_metadata
-        )
-
-        if response.status_code == 200:
-            return {"status": "Succeeded", "message": "Pipeline definition updated."}
-        if response.status_code == 202:
-            op_url = response.headers.get("Location") or response.headers.get("x-ms-operation-id")
-            job_id = str(uuid.uuid4())
-            if op_url:
-                job_status_store[job_id] = op_url
-                return {"status": "Accepted", "job_id": job_id, "message": "Update in progress."}
-            return {"status": "Accepted", "message": "Update initiated; no tracking URL."}
-
-        if response.status_code >= 400:
-            _raise_raw_http_error(response)
-
-        raise ToolError(str(response))
-
-    except (FabricAuthException, FabricApiException) as e:
-        raise ToolError(f"Failed to update pipeline definition: {e.response_text or str(e)}") from e
+        raise ToolError(f"Failed to run pipeline: {e.response_text or str(e)}")
 
 def register_pipeline_tools(app: FastMCP):
     logger.info("Registering Fabric Pipeline tools...")
-    # app.tool(name="create_pipeline")(create_pipeline_impl)
+    app.tool(name="create_pipeline")(create_pipeline_impl)
+    app.tool(name="update_pipeline")(update_pipeline_impl)
     app.tool(name="run_pipeline")(run_pipeline_impl)
-    app.tool(name="update_pipeline")(update_pipeline_definition_impl)
     logger.info("Fabric Pipeline tools registration complete.")

@@ -8,7 +8,7 @@ from pydantic import Field
 
 from ..sessions import get_session_fabric_client
 from ..fabric_models import DefinitionPart
-from ..activity_types import SourceConfig, SinkConfig      # ← NEW import
+from ..copy_activity_schemas import SourceModel, SinkModel
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +17,8 @@ async def configure_copy_activity_impl(
     workspace_id: str = Field(..., description="Workspace ID"),
     pipeline_id: str = Field(..., description="Pipeline ID"),
     activity_name: str = Field(..., description="Exact name of the Copy activity to patch"),
-    source: Optional[SourceConfig] = None,                 # ← typed
-    sink:   Optional[SinkConfig] = None,                   # ← typed
+    source: Optional[SourceModel] = None,
+    sink: Optional[SinkModel] = None,
     translator: Optional[Dict[str, Any]] = None,
     extra_type_properties: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
@@ -42,9 +42,9 @@ async def configure_copy_activity_impl(
         if act["name"] == activity_name and act["type"] == "Copy":
             tp = act.setdefault("typeProperties", {})
             if source is not None:
-                tp["source"] = {"type": source.type.value, **source.details}
+                tp["source"] = source.to_copy_activity_source()
             if sink is not None:
-                tp["sink"] = {"type": sink.type.value, **sink.details}
+                tp["sink"] = sink.to_copy_activity_sink()
             if translator is not None:
                 tp["translator"] = translator
             if extra_type_properties:
