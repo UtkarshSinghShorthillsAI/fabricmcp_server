@@ -180,7 +180,7 @@ class FilterProperties(BaseModel):
 class FilterActivity(BaseActivity):
     type: Literal["Filter"]
     typeProperties: FilterProperties
-    
+
 # Wait
 class WaitProperties(BaseModel):
     waitTimeInSeconds: int
@@ -191,8 +191,10 @@ class WaitActivity(BaseActivity):
 
 # Until
 class UntilProperties(BaseModel):
-    activities: List["Activity"] = Field(default_factory=list)
-    timeout: Optional[str] = None
+    """Defines the typeProperties for an Until activity (do-while loop)."""
+    expression: Expression = Field(..., description="An expression that must evaluate to true to terminate the loop.")
+    activities: List['Activity'] = Field(..., description="A list of activities to execute in each loop iteration.")
+    timeout: Optional[str] = Field("0.12:00:00", description="Timeout for the loop. Default is 12 hours.")
 
 class UntilActivity(BaseActivity):
     type: Literal["Until"]
@@ -338,3 +340,4 @@ ForEachProperties.model_rebuild()
 UntilProperties.model_rebuild()
 SwitchCase.model_rebuild()
 SwitchProperties.model_rebuild()
+FilterProperties.model_rebuild() 
