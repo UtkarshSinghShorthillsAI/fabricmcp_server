@@ -17,7 +17,7 @@ from ..fabric_models import (
     FabricApiException, FabricAuthException, ItemEntity
 )
 from ..app import get_session_fabric_client, job_status_store
-from ..activity_types import Activity, CopyActivity
+from ..activity_types import Activity, CopyActivity, LookupActivity
 from ..copy_activity_schemas import build_source_payload, build_sink_payload
 
 logger = logging.getLogger(__name__)
@@ -50,6 +50,21 @@ def _build_pipeline_definition_payload(
             activity_dict["typeProperties"]["sink"] = sink_payload
             
             final_activities_json.append(activity_dict)
+        
+        elif isinstance(act, LookupActivity): # <-- NEW BLOCK TO HANDLE LOOKUP
+            activity_dict = act.model_dump(by_alias=True, exclude_none=True) # <-- THE MISSING LINE
+            # A Lookup only has a source, so we build just that part
+            source_payload = build_source_payload(act.typeProperties.source)
+            
+            # The final payload for a Lookup is slightly different.
+            # It puts the source and datasetSettings at the top level of typeProperties.
+            final_type_properties = {
+                "source": source_payload.pop("source", {}),
+                "datasetSettings": source_payload.pop("datasetSettings", {})
+            }
+            activity_dict["typeProperties"] = final_type_properties
+            final_activities_json.append(activity_dict)
+
         else:
             # Use default Pydantic serialization for all other activities
             final_activities_json.append(act.model_dump(by_alias=True, exclude_none=True))

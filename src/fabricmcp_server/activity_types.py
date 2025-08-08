@@ -92,10 +92,16 @@ class GetMetadataActivity(BaseActivity):
 
 # ---------------- Lookup ----------------
 
+class LookupProperties(BaseModel):
+    """Defines the high-level, user-friendly configuration for a Lookup activity."""
+    source: SourceConfig
+    # The 'dataset' property from the ground truth is now handled internally
+    # by the source model's transformation, so it's not needed here.
+
 class LookupActivity(BaseActivity):
     type: Literal["Lookup"]
-    typeProperties: Optional[Dict[str, Any]] = Field(default_factory=dict)
-
+    typeProperties: LookupProperties
+    
 # ---------------- SqlServerStoredProcedure ----------------
 
 class StoredProcParam(BaseModel):

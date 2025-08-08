@@ -1,7 +1,7 @@
 # This is a new file: src/fabricmcp_server/common_schemas.py
 
 from __future__ import annotations
-from typing import Literal
+from typing import Literal, Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 
 class Expression(BaseModel):
@@ -15,3 +15,13 @@ class PipelineReference(BaseModel):
 
 class ExternalReferences(BaseModel):
     connection: str
+
+class DatasetReference(BaseModel):
+    """Represents a reference to a Dataset (Semantic Model) item."""
+    referenceName: str = Field(..., description="The ID of the referenced Dataset.")
+    type: Literal["DatasetReference"] = "DatasetReference"
+    parameters: Optional[Dict[str, Any]] = None
+
+class TabularTranslator(BaseModel):
+    """Defines a schema mapping translator for a Copy activity."""
+    type: Literal["TabularTranslator"] = "TabularTranslator"
