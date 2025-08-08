@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import List, Optional, Literal, Dict, Any, Union, Annotated
 from pydantic import BaseModel, Field, model_validator
 from .copy_activity_schemas import SourceConfig, SinkConfig, TabularTranslator, DatasetReference
+from .common_schemas import Expression
+
 # ---------------- Common pieces ----------------
 
 class DependencyCondition(BaseModel):
@@ -278,37 +280,19 @@ class AppendVariableActivity(BaseActivity):
 
 # ---------- Switch ----------
 class SwitchCase(BaseModel):
-    value: Any
-    activities: List["Activity"] = Field(default_factory=list)
-    model_config = {"extra": "allow"}
+    """Defines a case for the Switch activity."""
+    value: str
+    activities: List['Activity'] = Field(default_factory=list)
 
 class SwitchProperties(BaseModel):
-    # canonical form
-    expression: Optional["Expression"] = None
-    # accept LLM's shorthand; field name is on_, aliased to JSON key "on"
-    on_: Optional[str] = Field(None, alias="on")
-
+    """Defines the typeProperties for a Switch activity."""
+    on: Expression = Field(..., description="The expression to evaluate for the switch condition.")
     cases: List[SwitchCase] = Field(default_factory=list)
-    defaultActivities: List["Activity"] = Field(default_factory=list)
-
-    model_config = {
-        "extra": "allow",
-        "populate_by_name": True,
-    }
-
-    @model_validator(mode="before")
-    @classmethod
-    def coerce_on_to_expression(cls, data: Dict[str, Any]):
-        """Convert {'on': '@expr'} to {'expression': {...}} so Fabric accepts it."""
-        if "on" in data and "expression" not in data:
-            data["expression"] = {"type": "Expression", "value": data.pop("on")}
-        return data
+    defaultActivities: Optional[List['Activity']] = None
 
 class SwitchActivity(BaseActivity):
     type: Literal["Switch"]
     typeProperties: SwitchProperties
-
-
 # ---------------- Generic fallback ----------------
 
 # ---------- Generic fallback ----------
@@ -351,4 +335,5 @@ Activity = Annotated[
 IfConditionProperties.model_rebuild()
 ForEachProperties.model_rebuild()
 UntilProperties.model_rebuild()
+SwitchCase.model_rebuild()
 SwitchProperties.model_rebuild()
