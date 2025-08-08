@@ -17,7 +17,7 @@ from ..fabric_models import (
     FabricApiException, FabricAuthException, ItemEntity
 )
 from ..app import get_session_fabric_client, job_status_store
-from ..activity_types import Activity, CopyActivity, LookupActivity
+from ..activity_types import Activity, CopyActivity, LookupActivity, GetMetadataActivity
 from ..copy_activity_schemas import build_source_payload, build_sink_payload
 
 logger = logging.getLogger(__name__)
@@ -31,43 +31,41 @@ def _build_pipeline_definition_payload(
     activities: List[Activity]
 ) -> str:
     """
-    Builds the final pipeline JSON definition payload.
-    It now intelligently transforms Copy activities using the payload builders.
+    Builds the final pipeline JSON definition payload. It now correctly
+    delegates payload construction to the schema builders for relevant activities.
     """
     final_activities_json = []
     for act in activities:
-        # This is the core logic that makes the tool robust
-        if isinstance(act, CopyActivity):
-            # Create a deep copy to avoid modifying the input model
-            activity_dict = act.model_dump(by_alias=True, exclude_none=True)
-            
-            # Use the dedicated builders to generate the final API-compliant JSON
-            source_payload = build_source_payload(act.typeProperties.source)
-            sink_payload = build_sink_payload(act.typeProperties.sink)
-            
-            # Inject the generated payloads into the correct location
-            activity_dict["typeProperties"]["source"] = source_payload
-            activity_dict["typeProperties"]["sink"] = sink_payload
-            
-            final_activities_json.append(activity_dict)
-        
-        elif isinstance(act, LookupActivity): # <-- NEW BLOCK TO HANDLE LOOKUP
-            activity_dict = act.model_dump(by_alias=True, exclude_none=True) # <-- THE MISSING LINE
-            # A Lookup only has a source, so we build just that part
-            source_payload = build_source_payload(act.typeProperties.source)
-            
-            # The final payload for a Lookup is slightly different.
-            # It puts the source and datasetSettings at the top level of typeProperties.
-            final_type_properties = {
-                "source": source_payload.pop("source", {}),
-                "datasetSettings": source_payload.pop("datasetSettings", {})
-            }
-            activity_dict["typeProperties"] = final_type_properties
-            final_activities_json.append(activity_dict)
+        # Start with a clean dictionary representation of the user-provided model
+        activity_dict = act.model_dump(by_alias=True, exclude_none=True)
 
-        else:
-            # Use default Pydantic serialization for all other activities
-            final_activities_json.append(act.model_dump(by_alias=True, exclude_none=True))
+        if isinstance(act, CopyActivity):
+            # For Copy, build both source and sink and inject them
+            activity_dict["typeProperties"]["source"] = build_source_payload(act.typeProperties.source)
+            activity_dict["typeProperties"]["sink"] = build_sink_payload(act.typeProperties.sink)
+        
+        elif isinstance(act, LookupActivity):
+            # For Lookup, build the source and dataset payloads from the validated models
+            source_payload = build_source_payload(act.typeProperties.source)
+            dataset_payload = build_sink_payload(act.typeProperties.datasetSettings) # Re-use the sink builder
+            
+            # Construct the final API-compliant structure for Lookup
+            activity_dict["typeProperties"] = {
+                "source": source_payload,
+                "datasetSettings": dataset_payload.get("datasetSettings")
+            }
+            
+        elif isinstance(act, GetMetadataActivity):
+            # For GetMetadata, build the dataset payload from the validated model
+            dataset_payload = build_sink_payload(act.typeProperties.datasetSettings) # Re-use the sink builder
+            
+            # Construct the final API-compliant structure for GetMetadata
+            activity_dict["typeProperties"] = {
+                "fieldList": act.typeProperties.fieldList,
+                "datasetSettings": dataset_payload.get("datasetSettings")
+            }
+
+        final_activities_json.append(activity_dict)
 
     pipeline_struct = {"name": pipeline_name, "properties": {"activities": final_activities_json}}
     return _encode_b64(pipeline_struct)
