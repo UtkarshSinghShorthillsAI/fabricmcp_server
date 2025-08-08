@@ -173,13 +173,14 @@ class ForEachActivity(BaseActivity):
 
 # Filter
 class FilterProperties(BaseModel):
-    # your sample shows no typeProperties — keep as empty
-    dummy: Optional[str] = None
+    """Defines the typeProperties for a Filter activity."""
+    items: Expression = Field(..., description="An expression that must evaluate to an array to be filtered.")
+    condition: Expression = Field(..., description="A boolean expression to filter items. Use '@item()' to reference an item.")
 
 class FilterActivity(BaseActivity):
     type: Literal["Filter"]
-    typeProperties: Optional[FilterProperties] = Field(default_factory=dict)
-
+    typeProperties: FilterProperties
+    
 # Wait
 class WaitProperties(BaseModel):
     waitTimeInSeconds: int
