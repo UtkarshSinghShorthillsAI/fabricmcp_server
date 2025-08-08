@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import List, Optional, Literal, Dict, Any, Union, Annotated
 from pydantic import BaseModel, Field, model_validator
 from .copy_activity_schemas import SourceConfig, SinkConfig, TabularTranslator, DatasetReference
-from .common_schemas import Expression
+from .common_schemas import Expression, PipelineReference, ExternalReferences
 
 # ---------------- Common pieces ----------------
 
@@ -202,14 +202,17 @@ class UntilActivity(BaseActivity):
 
 # InvokePipeline
 class InvokePipelineProperties(BaseModel):
-    waitOnCompletion: Optional[bool] = True
-    operationType: Optional[str] = "InvokeFabricPipeline"
-    pipeline: Optional[str] = None  # if you later pass target pipeline id
+    """Defines the typeProperties for an InvokePipeline activity, based on ground truth."""
+    operationType: Literal["InvokeFabricPipeline"]
+    workspaceId: str
+    pipelineId: str
+    waitOnCompletion: bool = True
     parameters: Optional[Dict[str, Any]] = None
 
 class InvokePipelineActivity(BaseActivity):
     type: Literal["InvokePipeline"]
     typeProperties: InvokePipelineProperties
+    externalReferences: ExternalReferences 
 
 # DatabricksNotebook
 class DatabricksNotebookProperties(BaseModel):
