@@ -155,9 +155,59 @@ async def run_pipeline_impl(
     except (FabricAuthException, FabricApiException) as e:
         raise ToolError(f"Failed to run pipeline: {e.response_text or str(e)}")
 
+async def get_pipeline_definition_impl(
+    ctx: Context,
+    workspace_id: str = Field(..., description="The ID of the Fabric workspace containing the pipeline."),
+    pipeline_id: str = Field(..., description="The ID of the pipeline whose definition you want to retrieve."),
+    decode_payload: bool = Field(True, description="If true, decodes the Base64 payload of the pipeline content into JSON.")
+) -> Dict[str, Any]:
+    """
+    Retrieves the full JSON definition of a Data Pipeline.
+    By default, it decodes the Base64 payload to show the structured activities.
+    """
+    logger.info(f"Tool 'get_pipeline_definition' called for pipeline {pipeline_id}.")
+    try:
+        client = await get_session_fabric_client(ctx)
+        
+        definition = await client.get_item_definition(
+            workspace_id=workspace_id, 
+            item_id=pipeline_id
+        )
+        
+        if not definition:
+            raise ToolError("Pipeline definition not found or the API returned an empty response.")
+
+        if decode_payload and 'definition' in definition and 'parts' in definition['definition']:
+            try:
+                # Find the specific part for the pipeline content
+                content_part = next(
+                    part for part in definition['definition']['parts'] 
+                    if part.get("path") == "pipeline-content.json"
+                )
+                
+                # Decode the payload from Base64 to a JSON object
+                base64_payload = content_part['payload']
+                decoded_json_string = base64.b64decode(base64_payload).decode('utf-8')
+                decoded_payload_obj = json.loads(decoded_json_string)
+                
+                # Replace the opaque string with the rich JSON object
+                content_part['payload'] = decoded_payload_obj
+                logger.info(f"Successfully decoded pipeline content for pipeline {pipeline_id}.")
+
+            except (StopIteration, KeyError, Exception) as e:
+                logger.warning(f"Could not decode pipeline payload for {pipeline_id}: {e}")
+                # If decoding fails, we still return the raw definition to the user
+                pass
+            
+        return definition
+
+    except (FabricAuthException, FabricApiException) as e:
+        raise ToolError(f"Failed to get pipeline definition: {e.response_text or str(e)}")
+    
 def register_pipeline_tools(app: FastMCP):
     logger.info("Registering Fabric Pipeline tools...")
     app.tool(name="create_pipeline")(create_pipeline_impl)
     app.tool(name="update_pipeline")(update_pipeline_impl)
     app.tool(name="run_pipeline")(run_pipeline_impl)
+    app.tool(name="get_pipeline_definition")(get_pipeline_definition_impl)
     logger.info("Fabric Pipeline tools registration complete.")
