@@ -84,24 +84,24 @@ class RefreshDataflowActivity(BaseActivity):
     typeProperties: RefreshDataflowProperties
 
 # ---------------- GetMetadata ----------------
-# (No typeProperties in your sample—keep optional dict)
+
+class GetMetadataProperties(BaseModel):
+    """Defines the high-level configuration for a GetMetadata activity."""
+    datasetSettings: SinkConfig # Correctly models the ground truth
+    fieldList: List[str]
 
 class GetMetadataActivity(BaseActivity):
     type: Literal["GetMetadata"]
-    typeProperties: Optional[Dict[str, Any]] = Field(default_factory=dict)
-
-# ---------------- Lookup ----------------
+    typeProperties: GetMetadataProperties
 
 class LookupProperties(BaseModel):
-    """Defines the high-level, user-friendly configuration for a Lookup activity."""
+    """Defines the high-level configuration for a Lookup activity."""
     source: SourceConfig
-    # The 'dataset' property from the ground truth is now handled internally
-    # by the source model's transformation, so it's not needed here.
+    datasetSettings: SinkConfig # This was the missing field that the LLM correctly identified
 
 class LookupActivity(BaseActivity):
     type: Literal["Lookup"]
     typeProperties: LookupProperties
-    
 # ---------------- SqlServerStoredProcedure ----------------
 
 class StoredProcParam(BaseModel):
