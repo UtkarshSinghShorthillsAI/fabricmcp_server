@@ -127,6 +127,35 @@ class FabricApiClient:
         response = await self._httpx_client.get(operation_url, headers=headers)
         response.raise_for_status()
         return response
+    
+    async def list_connections(self) -> Optional[List[Dict[str, Any]]]:
+        """
+        Lists all connections accessible by the current credential at the tenant level.
+        Fabric permissions will automatically scope this to what the user/principal can see.
+        """
+        path = "/v1/connections"
+        headers = await self._get_auth_header("https://api.fabric.microsoft.com/.default")
+        
+        response_dict = await self._make_request("GET", f"{self._base_url}{path}", headers=headers)
+        
+        if response_dict and "value" in response_dict:
+            return response_dict["value"]
+        return []
+    
+    async def list_datasets(self, workspace_id: str) -> Optional[List[Dict[str, Any]]]:
+        """
+        Lists all dataset items (Semantic Models) in a specific workspace.
+        """
+        path = f"/v1/workspaces/{workspace_id}/items"
+        params = {"type": "SemanticModel"} 
+        headers = await self._get_auth_header("https://api.fabric.microsoft.com/.default")
+        
+        response_dict = await self._make_request("GET", f"{self._base_url}{path}", params=params, headers=headers)
+        
+        if response_dict and "value" in response_dict:
+            return response_dict["value"]
+        return []
+
     async def get_job_instance_status(self, job_instance_url: str) -> Dict[str, Any]:
         """Gets the status of a specific job instance (e.g., a pipeline or notebook run)."""
         headers = await self._get_auth_header("https://api.fabric.microsoft.com/.default")

@@ -1,7 +1,9 @@
 # fabric_mcp_server/activity_types.py
 from __future__ import annotations
 from typing import List, Optional, Literal, Dict, Any, Union, Annotated
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+from .copy_activity_schemas import SourceConfig, SinkConfig, TabularTranslator, DatasetReference
+from .common_schemas import Expression, PipelineReference, ExternalReferences
 
 # ---------------- Common pieces ----------------
 
@@ -55,14 +57,19 @@ class TeamsActivity(BaseActivity):
 # ---------------- Copy ----------------
 
 class CopyProperties(BaseModel):
-    enableStaging: Optional[bool] = False
-    source: Dict[str, Any]
-    sink: Dict[str, Any]
-    translator: Optional[Dict[str, Any]] = None
+    """Defines the high-level, user-friendly configuration for a Copy activity."""
+    source: SourceConfig
+    sink: SinkConfig
+    translator: Optional[TabularTranslator] = None
+    enableStaging: bool = False
 
 class CopyActivity(BaseActivity):
+    """The final, robust Copy Activity model."""
     type: Literal["Copy"]
     typeProperties: CopyProperties
+    inputs: List[DatasetReference]
+    outputs: List[DatasetReference]
+
 
 # ---------------- RefreshDataflow ----------------
 
@@ -77,18 +84,24 @@ class RefreshDataflowActivity(BaseActivity):
     typeProperties: RefreshDataflowProperties
 
 # ---------------- GetMetadata ----------------
-# (No typeProperties in your sample—keep optional dict)
+
+class GetMetadataProperties(BaseModel):
+    """Defines the high-level configuration for a GetMetadata activity."""
+    datasetSettings: SinkConfig # Correctly models the ground truth
+    fieldList: List[str]
 
 class GetMetadataActivity(BaseActivity):
     type: Literal["GetMetadata"]
-    typeProperties: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    typeProperties: GetMetadataProperties
 
-# ---------------- Lookup ----------------
+class LookupProperties(BaseModel):
+    """Defines the high-level configuration for a Lookup activity."""
+    source: SourceConfig
+    datasetSettings: SinkConfig # This was the missing field that the LLM correctly identified
 
 class LookupActivity(BaseActivity):
     type: Literal["Lookup"]
-    typeProperties: Optional[Dict[str, Any]] = Field(default_factory=dict)
-
+    typeProperties: LookupProperties
 # ---------------- SqlServerStoredProcedure ----------------
 
 class StoredProcParam(BaseModel):
@@ -166,12 +179,13 @@ class ForEachActivity(BaseActivity):
 
 # Filter
 class FilterProperties(BaseModel):
-    # your sample shows no typeProperties — keep as empty
-    dummy: Optional[str] = None
+    """Defines the typeProperties for a Filter activity."""
+    items: Expression = Field(..., description="An expression that must evaluate to an array to be filtered.")
+    condition: Expression = Field(..., description="A boolean expression to filter items. Use '@item()' to reference an item.")
 
 class FilterActivity(BaseActivity):
     type: Literal["Filter"]
-    typeProperties: Optional[FilterProperties] = Field(default_factory=dict)
+    typeProperties: FilterProperties
 
 # Wait
 class WaitProperties(BaseModel):
@@ -183,8 +197,10 @@ class WaitActivity(BaseActivity):
 
 # Until
 class UntilProperties(BaseModel):
-    activities: List["Activity"] = Field(default_factory=list)
-    timeout: Optional[str] = None
+    """Defines the typeProperties for an Until activity (do-while loop)."""
+    expression: Expression = Field(..., description="An expression that must evaluate to true to terminate the loop.")
+    activities: List['Activity'] = Field(..., description="A list of activities to execute in each loop iteration.")
+    timeout: Optional[str] = Field("0.12:00:00", description="Timeout for the loop. Default is 12 hours.")
 
 class UntilActivity(BaseActivity):
     type: Literal["Until"]
@@ -192,14 +208,17 @@ class UntilActivity(BaseActivity):
 
 # InvokePipeline
 class InvokePipelineProperties(BaseModel):
-    waitOnCompletion: Optional[bool] = True
-    operationType: Optional[str] = "InvokeFabricPipeline"
-    pipeline: Optional[str] = None  # if you later pass target pipeline id
+    """Defines the typeProperties for an InvokePipeline activity, based on ground truth."""
+    operationType: Literal["InvokeFabricPipeline"]
+    workspaceId: str
+    pipelineId: str
+    waitOnCompletion: bool = True
     parameters: Optional[Dict[str, Any]] = None
 
 class InvokePipelineActivity(BaseActivity):
     type: Literal["InvokePipeline"]
     typeProperties: InvokePipelineProperties
+    externalReferences: ExternalReferences 
 
 # DatabricksNotebook
 class DatabricksNotebookProperties(BaseModel):
@@ -219,6 +238,73 @@ class FabricSparkJobDefinitionActivity(BaseActivity):
     type: Literal["FabricSparkJobDefinition"]
     typeProperties: FabricSparkJobDefinitionProperties
 
+# ---------- NEW ACTIVITIES ----------
+
+# Fail
+class FailProperties(BaseModel):
+    message: Optional[str] = None
+    errorCode: Optional[str] = None
+    model_config = {"extra": "allow"}
+
+class FailActivity(BaseActivity):
+    type: Literal["Fail"]
+    typeProperties: FailProperties
+
+# WebActivity
+class WebActivity(BaseActivity):
+    type: Literal["WebActivity"]
+    typeProperties: Dict[str, Any] = Field(default_factory=dict)
+
+# WebHook
+class WebHookProperties(BaseModel):
+    method: Optional[str] = None
+    timeout: Optional[str] = None
+    model_config = {"extra": "allow"}
+
+class WebHookActivity(BaseActivity):
+    type: Literal["WebHook"]
+    typeProperties: WebHookProperties
+
+# Office365Outlook
+class OfficeInputs(BaseModel):
+    method: Optional[str] = None
+    path: Optional[str] = None
+    body: Optional[Dict[str, Any]] = None
+    model_config = {"extra": "allow"}
+
+class Office365OutlookProperties(BaseModel):
+    inputs: OfficeInputs
+    model_config = {"extra": "allow"}
+
+class Office365OutlookActivity(BaseActivity):
+    type: Literal["Office365Outlook"]
+    typeProperties: Office365OutlookProperties
+
+# AppendVariable
+class AppendVariableProperties(BaseModel):
+    variableName: str
+    value: Optional[Any] = None
+    model_config = {"extra": "allow"}
+
+class AppendVariableActivity(BaseActivity):
+    type: Literal["AppendVariable"]
+    typeProperties: AppendVariableProperties
+
+# ---------- Switch ----------
+class SwitchCase(BaseModel):
+    """Defines a case for the Switch activity."""
+    value: str
+    activities: List['Activity'] = Field(default_factory=list)
+
+class SwitchProperties(BaseModel):
+    """Defines the typeProperties for a Switch activity."""
+    on: Expression = Field(..., description="The expression to evaluate for the switch condition.")
+    cases: List[SwitchCase] = Field(default_factory=list)
+    defaultActivities: Optional[List['Activity']] = None
+
+class SwitchActivity(BaseActivity):
+    type: Literal["Switch"]
+    typeProperties: SwitchProperties
 # ---------------- Generic fallback ----------------
 
 # ---------- Generic fallback ----------
@@ -246,6 +332,12 @@ Activity = Annotated[
         InvokePipelineActivity,
         DatabricksNotebookActivity,
         FabricSparkJobDefinitionActivity,
+        FailActivity,
+        WebActivity,
+        WebHookActivity,
+        Office365OutlookActivity,
+        AppendVariableActivity,
+        SwitchActivity,
         GenericActivity,  # keep last
     ],
     Field(discriminator="type"),
@@ -255,3 +347,6 @@ Activity = Annotated[
 IfConditionProperties.model_rebuild()
 ForEachProperties.model_rebuild()
 UntilProperties.model_rebuild()
+SwitchCase.model_rebuild()
+SwitchProperties.model_rebuild()
+FilterProperties.model_rebuild() 

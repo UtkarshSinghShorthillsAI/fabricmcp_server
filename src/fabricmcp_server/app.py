@@ -94,9 +94,14 @@ def register_tools() -> None:
         universal_copy_activity.register_universal_copy_tools(mcp_app)
         logger.info("Successfully registered 'universal_copy_activity' tools.")
 
-        from .tools import connection_manager
-        connection_manager.register_connection_manager_tools(mcp_app)
-        logger.info("Successfully registered 'connection_manager' tools.")
+        from .tools import connections
+        connections.register_connection_tools(mcp_app)
+        logger.info("Successfully registered 'connections' tools.")
+
+        from .tools import datasets
+        datasets.register_dataset_tools(mcp_app)
+        logger.info("Successfully registered 'datasets' tools.")
+
     except Exception as exc:
         logger.exception(f"Error during tool registration: {exc}")
 
