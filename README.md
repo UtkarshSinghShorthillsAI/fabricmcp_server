@@ -17,7 +17,7 @@ This server exposes Microsoft Fabric functionalities as "tools" that can be unde
     ```
 4.  Install dependencies:
     ```bash
-    uv pip install -e .[dev]
+    uv pip install -e ".[dev]"
     ```
 5.  Create a `.env` file from the `.env.example` template and fill in your Fabric App Registration (Service Principal) details.
 
