@@ -27,7 +27,7 @@ class DefinitionPart(BaseModel):
 
 # Corrected Definition model for creation
 class ItemDefinitionForCreate(BaseModel):
-    format: str = Field(..., description="The format of the definition, e.g., 'ipynb' for notebooks or 'pbidataset' for Power BI datasets.")
+    # format: str = Field(..., description="The format of the definition, e.g., 'ipynb' for notebooks or 'pbidataset' for Power BI datasets.")
     parts: List[DefinitionPart]
 
 class ItemDefinitionForGet(BaseModel):
