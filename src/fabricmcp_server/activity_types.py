@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import List, Optional, Literal, Dict, Any, Union, Annotated
 from pydantic import BaseModel, Field, model_validator
 from .copy_activity_schemas import SourceConfig, SinkConfig, TabularTranslator, DatasetReference
-from .common_schemas import Expression, PipelineReference, ExternalReferences
+from .common_schemas import Expression, PipelineReference, ExternalReferences, LinkedServiceReference
 
 # ---------------- Common pieces ----------------
 
@@ -104,13 +104,18 @@ class LookupActivity(BaseActivity):
     typeProperties: LookupProperties
 # ---------------- SqlServerStoredProcedure ----------------
 
-class StoredProcParam(BaseModel):
+class StoredProcedureParameter(BaseModel):
     value: Any
-    type: Optional[str] = None   # "Boolean", "String", etc.
+    type: Optional[str] = Field(None, description="e.g., 'String', 'Int32', etc.")
 
-# No RootModel, just use a dict field directly
 class SqlServerStoredProcedureProperties(BaseModel):
-    storedProcedureParameters: Optional[Dict[str, StoredProcParam]] = None
+    storedProcedureName: str
+    storedProcedureParameters: Optional[Dict[str, StoredProcedureParameter]] = None
+
+class SqlServerStoredProcedureActivity(BaseActivity):
+    type: Literal["SqlServerStoredProcedure"]
+    typeProperties: SqlServerStoredProcedureProperties
+    linkedServiceName: LinkedServiceReference # <-- The crucial connection reference
 
 class LinkedServiceTypeProperties(BaseModel):
     artifactId: Optional[str] = None

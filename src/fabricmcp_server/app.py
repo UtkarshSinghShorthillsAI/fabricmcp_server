@@ -90,9 +90,9 @@ def register_tools() -> None:
         lakehouses.register_lakehouse_tools(mcp_app)
         logger.info("Successfully registered 'lakehouses' tools.")
 
-        from .tools import universal_copy_activity
-        universal_copy_activity.register_universal_copy_tools(mcp_app)
-        logger.info("Successfully registered 'universal_copy_activity' tools.")
+        # from .tools import universal_copy_activity
+        # universal_copy_activity.register_universal_copy_tools(mcp_app)
+        # logger.info("Successfully registered 'universal_copy_activity' tools.")
 
         from .tools import connections
         connections.register_connection_tools(mcp_app)

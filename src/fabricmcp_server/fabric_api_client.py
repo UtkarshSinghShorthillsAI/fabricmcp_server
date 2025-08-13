@@ -112,10 +112,21 @@ class FabricApiClient:
         headers = await self._get_auth_header("https://api.fabric.microsoft.com/.default")
         return await self._make_request("POST", f"{self._base_url}{path}", headers=headers)
 
-    async def update_item_definition(self, workspace_id: str, item_id: str, payload: UpdateItemDefinitionRequest) -> Optional[httpx.Response]:
+    async def update_item_definition(self, workspace_id: str, item_id: str, definition: Dict[str, Any]) -> httpx.Response:
+        """
+        Updates the definition of a Fabric item.
+        Returns the full httpx.Response object to allow for LRO header processing.
+        """
         path = f"/v1/workspaces/{workspace_id}/items/{item_id}/updateDefinition"
         headers = await self._get_auth_header("https://api.fabric.microsoft.com/.default")
-        return await self._make_request("POST", f"{self._base_url}{path}", json_body=payload, headers=headers)
+        
+        # This call now returns the response instead of None
+        response = await self._make_request("POST", f"{self._base_url}{path}", json_body=definition, headers=headers)
+        
+        if not isinstance(response, httpx.Response):
+            raise FabricApiException(0, f"Unexpected response type from _make_request: {type(response)}")
+            
+        return response
 
     async def run_item(self, workspace_id: str, item_id: str, job_type: str) -> Optional[httpx.Response]:
         path = f"/v1/workspaces/{workspace_id}/items/{item_id}/jobs/instances?jobType={job_type}"

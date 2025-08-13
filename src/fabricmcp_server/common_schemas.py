@@ -25,3 +25,8 @@ class DatasetReference(BaseModel):
 class TabularTranslator(BaseModel):
     """Defines a schema mapping translator for a Copy activity."""
     type: Literal["TabularTranslator"] = "TabularTranslator"
+
+class LinkedServiceReference(BaseModel):
+    """Represents a reference to a Connection (Linked Service) item by name."""
+    referenceName: str = Field(..., description="The name of the referenced Connection.")
+    type: Literal["LinkedServiceReference"] = "LinkedServiceReference"
