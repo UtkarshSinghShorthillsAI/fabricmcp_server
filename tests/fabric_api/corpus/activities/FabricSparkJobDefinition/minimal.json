@@ -1,0 +1,20 @@
+{
+  "id": "FabricSparkJobDefinition/minimal",
+  "activity": {
+    "name": "SparkJob_Minimal",
+    "type": "FabricSparkJobDefinition",
+    "typeProperties": {
+      "workspaceId": "4be6c4a0-4816-478d-bdc1-7bda19c32bc6"
+    }
+  },
+  "requirements": {
+    "connections": [],
+    "linkedServices": [],
+    "items": ["SparkJobDefinition item in the workspace"]
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Requires actual Spark Job Definition item - this is just a layout scaffold"
+}

@@ -1,0 +1,20 @@
+{
+  "id": "WebActivity/minimal",
+  "activity": {
+    "name": "Web_Minimal",
+    "type": "WebActivity",
+    "typeProperties": {
+      "url": "https://httpbin.org/get",
+      "method": "GET"
+    }
+  },
+  "requirements": {
+    "connections": [],
+    "linkedServices": []
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": true
+  },
+  "notes": "Simple HTTP GET request - should be runnable"
+}

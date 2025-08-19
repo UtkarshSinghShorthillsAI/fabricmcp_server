@@ -1,0 +1,19 @@
+{
+  "id": "Wait/minimal",
+  "activity": {
+    "name": "Wait_Minimal",
+    "type": "Wait",
+    "typeProperties": {
+      "waitTimeInSeconds": 10
+    }
+  },
+  "requirements": {
+    "connections": [],
+    "linkedServices": []
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": true
+  },
+  "notes": "Simple wait activity - should be fully runnable"
+}

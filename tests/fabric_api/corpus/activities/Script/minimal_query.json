@@ -1,0 +1,31 @@
+{
+  "id": "Script/minimal_query",
+  "activity": {
+    "name": "Script_Query_Minimal",
+    "type": "Script",
+    "typeProperties": {
+      "scripts": [
+        {
+          "type": "Query",
+          "text": {
+            "value": "SELECT 1 as test_column",
+            "type": "Expression"
+          }
+        }
+      ]
+    },
+    "externalReferences": {
+      "connection": "test_connection",
+      "connectionType": "SqlServer"
+    }
+  },
+  "requirements": {
+    "connections": ["SqlServer"],
+    "linkedServices": []
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Minimal Query script with SqlServer connection - simplest working example"
+}

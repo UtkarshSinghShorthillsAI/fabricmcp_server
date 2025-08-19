@@ -1,0 +1,33 @@
+{
+  "id": "Script/sqlserver_minimal", 
+  "activity": {
+    "name": "Script_SqlServer",
+    "type": "Script",
+    "typeProperties": {
+      "scripts": [
+        {
+          "type": "NonQuery",
+          "text": {
+            "value": "SELECT 1",
+            "type": "Expression"
+          }
+        }
+      ],
+      "scriptBlockExecutionTimeout": "02:00:00",
+      "database": "tempdb"
+    },
+    "externalReferences": {
+      "connection": "test_sqlserver_connection",
+      "connectionType": "SqlServer"
+    }
+  },
+  "requirements": {
+    "connections": ["SqlServer"],
+    "linkedServices": []
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Script with externalReferences SqlServer pattern"
+}

@@ -1,0 +1,56 @@
+{
+  "id": "Copy/flexible_multiple_sources_test",
+  "activity": {
+    "name": "MultiSource_Copy_Test",
+    "type": "Copy",
+    "typeProperties": {
+      "source": {
+        "type": "SqlServerSource",
+        "sqlReaderQuery": "SELECT TOP 10 * FROM test_table",
+        "queryTimeout": "02:00:00",
+        "datasetSettings": {
+          "type": "SqlServerTable",
+          "typeProperties": {
+            "schema": "dbo",
+            "table": "test_table"
+          },
+          "externalReferences": {
+            "connection": "test_sqlserver_connection"
+          }
+        }
+      },
+      "sink": {
+        "type": "LakehouseTableSink",
+        "datasetSettings": {
+          "type": "LakehouseTable",
+          "typeProperties": {
+            "table": "target_table"
+          },
+          "linkedService": {
+            "name": "test_lakehouse",
+            "properties": {
+              "type": "Lakehouse",
+              "typeProperties": {
+                "artifactId": "test_lakehouse_id",
+                "workspaceId": "4be6c4a0-4816-478d-bdc1-7bda19c32bc6"
+              }
+            }
+          }
+        }
+      },
+      "enableStaging": false,
+      "translator": {
+        "type": "TabularTranslator"
+      }
+    }
+  },
+  "requirements": {
+    "connections": ["SqlServer"],
+    "linkedServices": ["Lakehouse"]
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Testing flexible SQL Server to Lakehouse pattern based on real API structure"
+}

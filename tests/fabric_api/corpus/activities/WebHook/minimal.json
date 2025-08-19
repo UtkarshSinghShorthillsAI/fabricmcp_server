@@ -1,0 +1,21 @@
+{
+  "id": "WebHook/minimal",
+  "activity": {
+    "name": "WebHook_Minimal",
+    "type": "WebHook",
+    "typeProperties": {
+      "method": "POST",
+      "timeout": "0.00:10:00"
+    }
+  },
+  "requirements": {
+    "connections": [],
+    "linkedServices": []
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Bare-minimum scaffold accepted by Fabric."
+}
+

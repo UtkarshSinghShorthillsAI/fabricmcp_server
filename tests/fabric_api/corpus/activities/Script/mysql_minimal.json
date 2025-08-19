@@ -1,0 +1,32 @@
+{
+  "id": "Script/mysql_minimal",
+  "activity": {
+    "name": "Script_MySQL_Test",
+    "type": "Script",
+    "typeProperties": {
+      "scripts": [
+        {
+          "type": "Query",
+          "text": {
+            "value": "SELECT 1 as test_col",
+            "type": "Expression"
+          }
+        }
+      ],
+      "scriptBlockExecutionTimeout": "02:00:00"
+    },
+    "externalReferences": {
+      "connection": "test_mysql_connection",
+      "connectionType": "MySql"
+    }
+  },
+  "requirements": {
+    "connections": ["MySql"],
+    "linkedServices": []
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "MySQL connection type test - using ADF standard name"
+}

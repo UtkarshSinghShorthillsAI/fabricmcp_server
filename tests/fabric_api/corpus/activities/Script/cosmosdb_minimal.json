@@ -1,0 +1,40 @@
+{
+  "id": "Script/cosmosdb_minimal",
+  "activity": {
+    "name": "TestCosmosDBScript",
+    "type": "Script",
+    "dependsOn": [],
+    "policy": {
+      "timeout": "0.12:00:00",
+      "retry": 0,
+      "retryIntervalInSeconds": 30,
+      "secureOutput": false,
+      "secureInput": false
+    },
+    "typeProperties": {
+      "scripts": [
+        {
+          "type": "Query",
+          "text": {
+            "value": "SELECT VALUE c FROM c",
+            "type": "Expression"
+          }
+        }
+      ],
+      "scriptBlockExecutionTimeout": "02:00:00"
+    },
+    "externalReferences": {
+      "connection": "test_connection_placeholder",
+      "connectionType": "CosmosDb"
+    }
+  },
+  "requirements": {
+    "connections": ["CosmosDb"],
+    "linkedServices": []
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Azure Cosmos DB v2 Script activity - testing CosmosDB connection type"
+}

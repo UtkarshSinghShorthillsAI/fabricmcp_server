@@ -1,0 +1,39 @@
+{
+  "id": "Script/datawarehouse_minimal",
+  "activity": {
+    "name": "Script_DataWarehouse",
+    "type": "Script",
+    "typeProperties": {
+      "scripts": [
+        {
+          "type": "Query",
+          "text": {
+            "value": "SELECT 1 as test_column",
+            "type": "Expression"
+          }
+        }
+      ],
+      "scriptBlockExecutionTimeout": "02:00:00"
+    },
+    "linkedService": {
+      "name": "test_datawarehouse_linkedservice",
+      "properties": {
+        "type": "DataWarehouse",
+        "typeProperties": {
+          "endpoint": "test_endpoint",
+          "artifactId": "test_artifact_id", 
+          "workspaceId": "4be6c4a0-4816-478d-bdc1-7bda19c32bc6"
+        }
+      }
+    }
+  },
+  "requirements": {
+    "connections": [],
+    "linkedServices": ["DataWarehouse"]
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Script with linkedService DataWarehouse pattern"
+}

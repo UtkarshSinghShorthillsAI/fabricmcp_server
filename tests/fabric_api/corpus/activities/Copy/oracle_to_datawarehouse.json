@@ -1,0 +1,47 @@
+{
+  "id": "Copy/oracle_to_datawarehouse",
+  "activity": {
+    "name": "Copy_Oracle_To_DataWarehouse",
+    "type": "Copy",
+    "typeProperties": {
+      "source": {
+        "type": "OracleSource",
+        "oracleReaderQuery": "SELECT * FROM EMPLOYEES WHERE HIRE_DATE > SYSDATE - 30",
+        "datasetSettings": {
+          "type": "OracleTable",
+          "externalReferences": {
+            "connection": "test_oracle_connection"
+          }
+        }
+      },
+      "sink": {
+        "type": "DataWarehouseSink",
+        "datasetSettings": {
+          "type": "DataWarehouseTable",
+          "typeProperties": {
+            "table": "dim_employees"
+          },
+          "linkedService": {
+            "name": "test_datawarehouse",
+            "properties": {
+              "type": "DataWarehouse",
+              "typeProperties": {
+                "artifactId": "test_warehouse_id",
+                "workspaceId": "4be6c4a0-4816-478d-bdc1-7bda19c32bc6"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "requirements": {
+    "connections": ["Oracle"],
+    "linkedServices": ["DataWarehouse"]
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Copy from Oracle to DataWarehouse - enterprise data integration pattern"
+}

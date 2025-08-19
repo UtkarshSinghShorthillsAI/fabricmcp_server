@@ -1,0 +1,32 @@
+{
+  "id": "Script/azuresql_minimal",
+  "activity": {
+    "name": "Script_AzureSQL_Test",
+    "type": "Script",
+    "typeProperties": {
+      "scripts": [
+        {
+          "type": "Query",
+          "text": {
+            "value": "SELECT 1 as test_col",
+            "type": "Expression"
+          }
+        }
+      ],
+      "scriptBlockExecutionTimeout": "02:00:00"
+    },
+    "externalReferences": {
+      "connection": "test_azuresql_connection",
+      "connectionType": "AzureSqlDatabase"
+    }
+  },
+  "requirements": {
+    "connections": ["AzureSqlDatabase"],
+    "linkedServices": []
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Azure SQL Database connection type test - using ADF standard name"
+}

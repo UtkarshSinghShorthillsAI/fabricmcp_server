@@ -1,0 +1,63 @@
+{
+  "id": "Copy/azurefilestorage_to_lakehouse",
+  "activity": {
+    "name": "TestAzureFilesCopy",
+    "type": "Copy",
+    "inputs": [
+      {
+        "referenceName": "SourceDataset", 
+        "type": "DatasetReference"
+      }
+    ],
+    "outputs": [
+      {
+        "referenceName": "SinkDataset",
+        "type": "DatasetReference"
+      }
+    ],
+    "typeProperties": {
+      "source": {
+        "type": "DelimitedTextSource",
+        "storeSettings": {
+          "type": "AzureFileStorageReadSettings",
+          "recursive": true,
+          "wildcardFolderPath": "data/",
+          "wildcardFileName": "*.csv"
+        },
+        "formatSettings": {
+          "type": "DelimitedTextReadSettings",
+          "skipLineCount": 0,
+          "compressionProperties": {
+            "type": "ZipDeflateReadSettings"
+          }
+        }
+      },
+      "sink": {
+        "type": "LakehouseFileSink",
+        "storeSettings": {
+          "type": "LakehouseWriteSettings",
+          "copyBehavior": "PreserveHierarchy"
+        },
+        "formatSettings": {
+          "type": "DelimitedTextWriteSettings",
+          "quoteAllText": false,
+          "fileExtension": ".csv"
+        }
+      },
+      "enableStaging": false
+    },
+    "externalReferences": {
+      "connection": "test_azurefiles_connection",
+      "connectionType": "AzureFileStorage"
+    }
+  },
+  "requirements": {
+    "connections": ["AzureFileStorage"],
+    "linkedServices": ["Lakehouse"]
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Azure File Storage to Lakehouse copy - testing Azure Files connection pattern"
+}

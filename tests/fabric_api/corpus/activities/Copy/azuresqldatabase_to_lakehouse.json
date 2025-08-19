@@ -1,0 +1,47 @@
+{
+  "id": "Copy/azuresqldatabase_to_lakehouse",
+  "activity": {
+    "name": "TestAzureSQLCopy",
+    "type": "Copy",
+    "inputs": [
+      {
+        "referenceName": "SourceDataset",
+        "type": "DatasetReference"
+      }
+    ],
+    "outputs": [
+      {
+        "referenceName": "SinkDataset", 
+        "type": "DatasetReference"
+      }
+    ],
+    "typeProperties": {
+      "source": {
+        "type": "AzureSqlSource",
+        "sqlReaderQuery": "SELECT TOP 10 * FROM test_table",
+        "queryTimeout": "02:00:00"
+      },
+      "sink": {
+        "type": "LakehouseTableSink",
+        "tableOption": "autoCreate"
+      },
+      "enableStaging": false,
+      "translator": {
+        "type": "TabularTranslator"
+      }
+    },
+    "externalReferences": {
+      "connection": "test_azuresql_connection",
+      "connectionType": "AzureSqlDatabase"
+    }
+  },
+  "requirements": {
+    "connections": ["AzureSqlDatabase"],
+    "linkedServices": ["Lakehouse"]
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Azure SQL Database to Lakehouse copy - testing new database connection pattern"
+}

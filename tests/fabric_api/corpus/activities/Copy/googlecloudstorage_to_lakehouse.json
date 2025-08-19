@@ -1,0 +1,54 @@
+{
+  "id": "Copy/googlecloudstorage_to_lakehouse",
+  "activity": {
+    "name": "TestGCSCopy",
+    "type": "Copy", 
+    "inputs": [
+      {
+        "referenceName": "SourceDataset",
+        "type": "DatasetReference"
+      }
+    ],
+    "outputs": [
+      {
+        "referenceName": "SinkDataset",
+        "type": "DatasetReference"
+      }
+    ],
+    "typeProperties": {
+      "source": {
+        "type": "BinarySource",
+        "storeSettings": {
+          "type": "GoogleCloudStorageReadSettings",
+          "recursive": true,
+          "wildcardFolderPath": "data/",
+          "wildcardFileName": "*.csv"
+        },
+        "formatSettings": {
+          "type": "BinaryReadSettings"
+        }
+      },
+      "sink": {
+        "type": "LakehouseFileSink",
+        "storeSettings": {
+          "type": "LakehouseWriteSettings",
+          "copyBehavior": "PreserveHierarchy"
+        }
+      },
+      "enableStaging": false
+    },
+    "externalReferences": {
+      "connection": "test_gcs_connection",
+      "connectionType": "GoogleCloudStorage"
+    }
+  },
+  "requirements": {
+    "connections": ["GoogleCloudStorage"],
+    "linkedServices": ["Lakehouse"]
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Google Cloud Storage to Lakehouse copy - testing cloud storage connection pattern"
+}

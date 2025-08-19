@@ -1,0 +1,20 @@
+{
+  "id": "Fail/minimal",
+  "activity": {
+    "name": "Fail_Minimal",
+    "type": "Fail",
+    "typeProperties": {
+      "message": "Pipeline failed intentionally",
+      "errorCode": "USER_ERROR_001"
+    }
+  },
+  "requirements": {
+    "connections": [],
+    "linkedServices": []
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": true
+  },
+  "notes": "Fail activity for error handling - always fails when run"
+}

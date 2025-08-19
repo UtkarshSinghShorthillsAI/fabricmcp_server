@@ -1,0 +1,53 @@
+{
+  "id": "Script/snowflake_complex",
+  "activity": {
+    "name": "Script_Snowflake_Complex",
+    "type": "Script",
+    "typeProperties": {
+      "scripts": [
+        {
+          "type": "Query",
+          "text": {
+            "value": "SELECT COUNT(*) FROM table WHERE @input_date BETWEEN '2024-01-01' AND CURRENT_DATE()",
+            "type": "Expression"
+          },
+          "parameters": [
+            {
+              "name": "input_date",
+              "type": "Datetime",
+              "value": "2024-01-01",
+              "direction": "Input"
+            },
+            {
+              "name": "row_count",
+              "type": "Int64",
+              "value": "",
+              "direction": "Output"
+            },
+            {
+              "name": "status_flag",
+              "type": "Boolean",
+              "value": "true",
+              "direction": "InputOutput"
+            }
+          ]
+        }
+      ],
+      "scriptBlockExecutionTimeout": "00:30:00",
+      "connectionVersion": "1.1"
+    },
+    "externalReferences": {
+      "connection": "test_snowflake_connection",
+      "connectionType": "Snowflake"
+    }
+  },
+  "requirements": {
+    "connections": ["Snowflake"],
+    "linkedServices": []
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Complex Snowflake script with multiple parameter types and shorter timeout"
+}

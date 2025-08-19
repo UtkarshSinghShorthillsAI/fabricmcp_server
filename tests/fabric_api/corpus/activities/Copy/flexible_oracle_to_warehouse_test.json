@@ -1,0 +1,56 @@
+{
+  "id": "Copy/flexible_oracle_to_warehouse_test",
+  "activity": {
+    "name": "Oracle_to_Warehouse_Test",
+    "type": "Copy",
+    "typeProperties": {
+      "source": {
+        "type": "OracleSource",
+        "oracleReaderQuery": "SELECT * FROM test_table WHERE ROWNUM <= 50",
+        "datasetSettings": {
+          "type": "OracleTable",
+          "typeProperties": {
+            "schema": "HR",
+            "table": "test_table"
+          },
+          "externalReferences": {
+            "connection": "test_oracle_connection"
+          }
+        }
+      },
+      "sink": {
+        "type": "SqlDWSink",
+        "datasetSettings": {
+          "type": "SqlDWTable",
+          "typeProperties": {
+            "schema": "dbo",
+            "table": "oracle_data"
+          },
+          "linkedService": {
+            "name": "test_warehouse",
+            "properties": {
+              "type": "DataWarehouse",
+              "typeProperties": {
+                "artifactId": "test_warehouse_id",
+                "workspaceId": "4be6c4a0-4816-478d-bdc1-7bda19c32bc6"
+              }
+            }
+          }
+        }
+      },
+      "enableStaging": false,
+      "translator": {
+        "type": "TabularTranslator"
+      }
+    }
+  },
+  "requirements": {
+    "connections": ["Oracle"],
+    "linkedServices": ["DataWarehouse"]
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Testing flexible Oracle to DataWarehouse pattern"
+}

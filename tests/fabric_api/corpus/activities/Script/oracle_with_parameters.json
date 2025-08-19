@@ -1,0 +1,46 @@
+{
+  "id": "Script/oracle_with_parameters",
+  "activity": {
+    "name": "Script_Oracle_Params", 
+    "type": "Script",
+    "typeProperties": {
+      "scripts": [
+        {
+          "type": "NonQuery",
+          "text": {
+            "value": "BEGIN NULL; END;",
+            "type": "Expression"
+          },
+          "parameters": [
+            {
+              "name": "input_param",
+              "type": "String", 
+              "value": "test_value",
+              "direction": "Input"
+            },
+            {
+              "name": "output_param",
+              "type": "Int16",
+              "value": "",
+              "direction": "Output"
+            }
+          ]
+        }
+      ],
+      "scriptBlockExecutionTimeout": "02:00:00"
+    },
+    "externalReferences": {
+      "connection": "test_oracle_connection",
+      "connectionType": "Oracle"
+    }
+  },
+  "requirements": {
+    "connections": ["Oracle"],
+    "linkedServices": []
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Script with Oracle connection and parameters"
+}

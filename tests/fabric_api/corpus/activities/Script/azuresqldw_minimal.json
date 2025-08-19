@@ -1,0 +1,40 @@
+{
+  "id": "Script/azuresqldw_minimal",
+  "activity": {
+    "name": "TestAzureSynapseScript",
+    "type": "Script",
+    "dependsOn": [],
+    "policy": {
+      "timeout": "0.12:00:00",
+      "retry": 0,
+      "retryIntervalInSeconds": 30,
+      "secureOutput": false,
+      "secureInput": false
+    },
+    "typeProperties": {
+      "scripts": [
+        {
+          "type": "Query",
+          "text": {
+            "value": "SELECT 1 as test_col",
+            "type": "Expression"
+          }
+        }
+      ],
+      "scriptBlockExecutionTimeout": "02:00:00"
+    },
+    "externalReferences": {
+      "connection": "test_connection_placeholder",
+      "connectionType": "AzureSqlDW"
+    }
+  },
+  "requirements": {
+    "connections": ["AzureSqlDW"],
+    "linkedServices": []
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Azure Synapse Analytics (SQL pool) Script activity - testing DW connection type"
+}

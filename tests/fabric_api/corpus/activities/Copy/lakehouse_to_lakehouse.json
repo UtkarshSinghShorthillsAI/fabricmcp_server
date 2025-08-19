@@ -1,0 +1,56 @@
+{
+  "id": "Copy/lakehouse_to_lakehouse",
+  "activity": {
+    "name": "Copy_Lakehouse_To_Lakehouse",
+    "type": "Copy",
+    "typeProperties": {
+      "source": {
+        "type": "LakehouseTableSource",
+        "datasetSettings": {
+          "type": "LakehouseTable",
+          "typeProperties": {
+            "table": "source_table"
+          },
+          "linkedService": {
+            "name": "source_lakehouse",
+            "properties": {
+              "type": "Lakehouse",
+              "typeProperties": {
+                "artifactId": "source_lakehouse_id",
+                "workspaceId": "4be6c4a0-4816-478d-bdc1-7bda19c32bc6"
+              }
+            }
+          }
+        }
+      },
+      "sink": {
+        "type": "LakehouseTableSink",
+        "datasetSettings": {
+          "type": "LakehouseTable",
+          "typeProperties": {
+            "table": "target_table"
+          },
+          "linkedService": {
+            "name": "target_lakehouse",
+            "properties": {
+              "type": "Lakehouse",
+              "typeProperties": {
+                "artifactId": "target_lakehouse_id",
+                "workspaceId": "4be6c4a0-4816-478d-bdc1-7bda19c32bc6"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "requirements": {
+    "connections": [],
+    "linkedServices": ["Lakehouse"]
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Simple Lakehouse to Lakehouse copy - should work with existing models"
+}

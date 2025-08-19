@@ -1,0 +1,59 @@
+{
+  "id": "Copy/amazons3_to_s3compatible_real", 
+  "activity": {
+    "name": "Copy_S3_To_S3Compatible_Real",
+    "type": "Copy",
+    "typeProperties": {
+      "source": {
+        "type": "BinarySource",
+        "storeSettings": {
+          "type": "AmazonS3ReadSettings",
+          "recursive": true
+        },
+        "formatSettings": {
+          "type": "BinaryReadSettings"
+        },
+        "datasetSettings": {
+          "annotations": [],
+          "type": "Binary",
+          "typeProperties": {
+            "location": {
+              "type": "AmazonS3Location"
+            }
+          },
+          "externalReferences": {
+            "connection": "test_amazons3_connection"
+          }
+        }
+      },
+      "sink": {
+        "type": "BinarySink",
+        "storeSettings": {
+          "type": "AmazonS3CompatibleWriteSettings"
+        },
+        "datasetSettings": {
+          "annotations": [],
+          "type": "Binary",
+          "typeProperties": {
+            "location": {
+              "type": "AmazonS3CompatibleLocation"
+            }
+          },
+          "externalReferences": {
+            "connection": "test_s3compatible_connection"
+          }
+        }
+      },
+      "enableStaging": false
+    }
+  },
+  "requirements": {
+    "connections": ["AmazonS3", "AmazonS3Compatible"],
+    "linkedServices": []
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Real UI pattern - S3 to S3Compatible using Binary + different store settings"
+}

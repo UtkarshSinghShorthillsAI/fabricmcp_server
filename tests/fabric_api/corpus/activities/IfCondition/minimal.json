@@ -1,0 +1,32 @@
+{
+  "id": "IfCondition/minimal",
+  "activity": {
+    "name": "IfCondition_Minimal",
+    "type": "IfCondition",
+    "typeProperties": {
+      "expression": {
+        "value": "@equals(1, 1)",
+        "type": "Expression"
+      },
+      "ifTrueActivities": [
+        {
+          "name": "Wait_InTrue",
+          "type": "Wait",
+          "typeProperties": {
+            "waitTimeInSeconds": 5
+          }
+        }
+      ],
+      "ifFalseActivities": []
+    }
+  },
+  "requirements": {
+    "connections": [],
+    "linkedServices": []
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": true
+  },
+  "notes": "If condition with simple expression - should be fully runnable"
+}

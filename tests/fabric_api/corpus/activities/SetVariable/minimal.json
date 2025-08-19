@@ -1,0 +1,21 @@
+{
+  "id": "SetVariable/minimal",
+  "activity": {
+    "name": "SetVariable_Minimal",
+    "type": "SetVariable",
+    "typeProperties": {
+      "variableName": "myVariable",
+      "value": "Hello from test"
+    }
+  },
+  "requirements": {
+    "connections": [],
+    "linkedServices": [],
+    "variables": ["myVariable"]
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Requires pipeline to have a variable named 'myVariable' defined"
+}

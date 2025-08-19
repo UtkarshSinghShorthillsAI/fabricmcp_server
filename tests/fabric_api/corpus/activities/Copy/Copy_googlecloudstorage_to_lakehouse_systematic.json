@@ -1,0 +1,64 @@
+{
+  "id": "Copy/googlecloudstorage_to_lakehouse_systematic",
+  "activity": {
+    "name": "Systematic_GoogleCloudStorage_to_Lakehouse",
+    "type": "Copy",
+    "typeProperties": {
+      "source": {
+        "type": "GoogleCloudStorageSource",
+        "sqlReaderQuery": "SELECT TOP 100 * FROM test_table",
+        "queryTimeout": "02:00:00",
+        "datasetSettings": {
+          "type": "GoogleCloudStorageTable",
+          "typeProperties": {
+            "schema": "dbo",
+            "table": "test_table"
+          },
+          "externalReferences": {
+            "connection": "test_googlecloudstorage_connection"
+          }
+        }
+      },
+      "sink": {
+        "type": "LakehouseTableSink",
+        "datasetSettings": {
+          "type": "LakehouseTable",
+          "typeProperties": {
+            "table": "target_table"
+          },
+          "linkedService": {
+            "name": "test_lakehouse",
+            "properties": {
+              "type": "Lakehouse",
+              "typeProperties": {
+                "artifactId": "test_lakehouse_id",
+                "workspaceId": "4be6c4a0-4816-478d-bdc1-7bda19c32bc6"
+              }
+            }
+          }
+        }
+      },
+      "enableStaging": false,
+      "translator": {
+        "type": "TabularTranslator"
+      }
+    }
+  },
+  "requirements": {
+    "connections": [
+      "GoogleCloudStorage"
+    ],
+    "linkedServices": [
+      "Lakehouse"
+    ]
+  },
+  "expected": {
+    "updateDefinition": [
+      200,
+      202
+    ],
+    "runnable": false
+  },
+  "notes": "Systematic test: GoogleCloudStorage source to Lakehouse sink - Priority: high",
+  "priority": "high"
+}

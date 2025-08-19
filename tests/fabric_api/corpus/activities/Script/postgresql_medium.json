@@ -1,0 +1,40 @@
+{
+  "id": "Script/postgresql_medium",
+  "activity": {
+    "name": "Script_PostgreSQL_Medium",
+    "type": "Script",
+    "typeProperties": {
+      "scripts": [
+        {
+          "type": "NonQuery",
+          "text": {
+            "value": "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE user_id = @user_id",
+            "type": "Expression"
+          },
+          "parameters": [
+            {
+              "name": "user_id",
+              "type": "Int32",
+              "value": "12345",
+              "direction": "Input"
+            }
+          ]
+        }
+      ],
+      "scriptBlockExecutionTimeout": "01:00:00"
+    },
+    "externalReferences": {
+      "connection": "test_postgresql_connection", 
+      "connectionType": "PostgreSql"
+    }
+  },
+  "requirements": {
+    "connections": ["PostgreSql"],
+    "linkedServices": []
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": false
+  },
+  "notes": "Medium complexity PostgreSQL script with single parameter"
+}

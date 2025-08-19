@@ -1,0 +1,31 @@
+{
+  "id": "ForEach/minimal",
+  "activity": {
+    "name": "ForEach_Minimal",
+    "type": "ForEach",
+    "typeProperties": {
+      "items": {
+        "value": "@createArray('item1', 'item2', 'item3')",
+        "type": "Expression"
+      },
+      "activities": [
+        {
+          "name": "Wait_InLoop",
+          "type": "Wait",
+          "typeProperties": {
+            "waitTimeInSeconds": 2
+          }
+        }
+      ]
+    }
+  },
+  "requirements": {
+    "connections": [],
+    "linkedServices": []
+  },
+  "expected": {
+    "updateDefinition": [200, 202],
+    "runnable": true
+  },
+  "notes": "ForEach with static array - should be fully runnable"
+}
