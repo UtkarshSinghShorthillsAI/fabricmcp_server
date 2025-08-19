@@ -58,8 +58,8 @@ class TeamsActivity(BaseActivity):
 
 class CopyProperties(BaseModel):
     """Defines the high-level, user-friendly configuration for a Copy activity."""
-    source: SourceConfig
-    sink: SinkConfig
+    source: Optional[SourceConfig] = None
+    sink: Optional[SinkConfig] = None
     translator: Optional[TabularTranslator] = None
     enableStaging: bool = False
 
@@ -67,8 +67,8 @@ class CopyActivity(BaseActivity):
     """The final, robust Copy Activity model."""
     type: Literal["Copy"]
     typeProperties: CopyProperties
-    inputs: List[DatasetReference]
-    outputs: List[DatasetReference]
+    inputs: List[DatasetReference] = Field(default_factory=list)
+    outputs: List[DatasetReference] = Field(default_factory=list)
 
 
 # ---------------- RefreshDataflow ----------------
