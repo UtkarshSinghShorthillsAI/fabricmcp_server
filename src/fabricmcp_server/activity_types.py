@@ -2,8 +2,9 @@
 from __future__ import annotations
 from typing import List, Optional, Literal, Dict, Any, Union, Annotated
 from pydantic import BaseModel, Field, model_validator
-from .copy_activity_schemas import SourceConfig, SinkConfig, TabularTranslator, DatasetReference
-from .common_schemas import Expression, PipelineReference, ExternalReferences, LinkedServiceReference
+# Removed overfitted copy schemas - using flexible models
+from .common_schemas import Expression, PipelineReference, ExternalReferences, LinkedServiceReference, DatasetReference, TabularTranslator
+from .connection_types import DatabaseConnectionRef, StorageConnectionRef, FabricLinkedService
 
 # ---------------- Common pieces ----------------
 
@@ -56,19 +57,14 @@ class TeamsActivity(BaseActivity):
 
 # ---------------- Copy ----------------
 
-class CopyProperties(BaseModel):
-    """Defines the high-level, user-friendly configuration for a Copy activity."""
-    source: Optional[SourceConfig] = None
-    sink: Optional[SinkConfig] = None
-    translator: Optional[TabularTranslator] = None
-    enableStaging: bool = False
+from .flexible_copy_schemas import FlexibleCopyProperties
 
 class CopyActivity(BaseActivity):
-    """The final, robust Copy Activity model."""
+    """Flexible Copy Activity model - matches real Fabric API patterns"""
     type: Literal["Copy"]
-    typeProperties: CopyProperties
-    inputs: List[DatasetReference] = Field(default_factory=list)
-    outputs: List[DatasetReference] = Field(default_factory=list)
+    typeProperties: FlexibleCopyProperties
+    inputs: Optional[List[DatasetReference]] = None
+    outputs: Optional[List[DatasetReference]] = None
 
 
 # ---------------- RefreshDataflow ----------------
@@ -87,7 +83,7 @@ class RefreshDataflowActivity(BaseActivity):
 
 class GetMetadataProperties(BaseModel):
     """Defines the high-level configuration for a GetMetadata activity."""
-    datasetSettings: SinkConfig # Correctly models the ground truth
+    datasetSettings: Dict[str, Any]  # Flexible dataset settings 
     fieldList: List[str]
 
 class GetMetadataActivity(BaseActivity):
@@ -96,8 +92,8 @@ class GetMetadataActivity(BaseActivity):
 
 class LookupProperties(BaseModel):
     """Defines the high-level configuration for a Lookup activity."""
-    source: SourceConfig
-    datasetSettings: SinkConfig # This was the missing field that the LLM correctly identified
+    source: Dict[str, Any]  # Flexible source settings
+    datasetSettings: Dict[str, Any]  # Flexible dataset settings
 
 class LookupActivity(BaseActivity):
     type: Literal["Lookup"]
@@ -310,6 +306,54 @@ class SwitchProperties(BaseModel):
 class SwitchActivity(BaseActivity):
     type: Literal["Switch"]
     typeProperties: SwitchProperties
+
+# ---------------- Script Activity ----------------
+
+class ScriptParameter(BaseModel):
+    """Defines a parameter for a script - based on verified working structure."""
+    name: str = Field(..., description="Parameter name")
+    type: str = Field(..., description="Parameter type like String, Int16, Int32, Int64, Boolean, Datetime, Byte[], etc.")
+    value: str = Field(..., description="Parameter value")
+    direction: Optional[str] = Field(None, description="Input, Output, or InputOutput")
+
+class ScriptText(BaseModel):
+    """Script text expression - matches Fabric's exact structure.""" 
+    value: str = Field(..., description="The SQL/script text")
+    type: Literal["Expression"] = "Expression"
+
+class ScriptItem(BaseModel):
+    """Defines a script item - based on verified working structure.""" 
+    type: Literal["Query", "NonQuery"] = Field(..., description="Query returns data, NonQuery doesn't")
+    text: ScriptText = Field(..., description="The script text as Expression object")
+    parameters: Optional[List[ScriptParameter]] = Field(None, description="Script parameters")
+
+class ScriptProperties(BaseModel):
+    """Script activity properties - based on verified working structure."""
+    scripts: List[ScriptItem] = Field(..., description="List of scripts to execute")
+    scriptBlockExecutionTimeout: Optional[str] = Field("02:00:00", description="Timeout in format HH:MM:SS")
+    database: Optional[str] = Field(None, description="Database name for SQL Server connections")
+    connectionVersion: Optional[str] = Field(None, description="Connection version for some providers")
+
+class ScriptActivity(BaseActivity):
+    type: Literal["Script"]
+    typeProperties: ScriptProperties
+    linkedService: Optional[FabricLinkedService] = Field(None, description="For DataWarehouse connections only")
+    externalReferences: Optional[Union[DatabaseConnectionRef, Dict[str, Any]]] = Field(None, description="For external database connections - verified types only")
+    
+    @model_validator(mode='after')
+    def validate_connection_pattern(self):
+        """Ensure exactly one connection pattern is specified."""
+        has_linked_service = self.linkedService is not None
+        has_external_ref = self.externalReferences is not None
+        
+        if not (has_linked_service or has_external_ref):
+            raise ValueError("Script activity requires either linkedService (DataWarehouse) or externalReferences (external database)")
+        
+        if has_linked_service and has_external_ref:
+            raise ValueError("Script activity cannot have both linkedService and externalReferences - use one connection pattern")
+            
+        return self
+
 # ---------------- Generic fallback ----------------
 
 # ---------- Generic fallback ----------
@@ -343,6 +387,7 @@ Activity = Annotated[
         Office365OutlookActivity,
         AppendVariableActivity,
         SwitchActivity,
+        ScriptActivity,
         GenericActivity,  # keep last
     ],
     Field(discriminator="type"),

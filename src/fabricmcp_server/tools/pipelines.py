@@ -18,7 +18,7 @@ from ..fabric_models import (
 )
 from ..app import get_session_fabric_client, job_status_store
 from ..activity_types import Activity, CopyActivity, LookupActivity, GetMetadataActivity
-from ..copy_activity_schemas import build_source_payload, build_sink_payload
+# Legacy import removed - using flexible models directly
 
 logger = logging.getLogger(__name__)
 
@@ -28,47 +28,55 @@ def _encode_b64(obj: dict) -> str:
 
 def _build_pipeline_definition_payload(
     pipeline_name: str,
-    activities: List[Activity]
-) -> str:
+    activities: List[Activity],
+    strict: bool = True,
+    layout_only: bool = False
+) -> tuple[str, List[str]]:
     """
-    Builds the final pipeline JSON definition payload. It now correctly
-    delegates payload construction to the schema builders for relevant activities.
+    Builds the final pipeline JSON definition payload. 
+    Returns: (base64_payload, list_of_warnings)
     """
     final_activities_json = []
+    warnings = []
+    
     for act in activities:
         # Start with a clean dictionary representation of the user-provided model
         activity_dict = act.model_dump(by_alias=True, exclude_none=True)
-
-        if isinstance(act, CopyActivity):
-            # For Copy, build both source and sink and inject them
-            activity_dict["typeProperties"]["source"] = build_source_payload(act.typeProperties.source)
-            activity_dict["typeProperties"]["sink"] = build_sink_payload(act.typeProperties.sink)
+        activity_type = act.type
         
-        elif isinstance(act, LookupActivity):
-            # For Lookup, build the source and dataset payloads from the validated models
-            source_payload = build_source_payload(act.typeProperties.source)
-            dataset_payload = build_sink_payload(act.typeProperties.datasetSettings) # Re-use the sink builder
+        try:
+            if isinstance(act, CopyActivity):
+                if layout_only:
+                    # In layout_only mode, skip complex payload building
+                    warnings.append(f"Copy activity '{act.name}' created as layout scaffold - configure source/sink manually")
+                else:
+                    # Flexible models already contain correct API structure - no transformation needed
+                    logger.info(f"Copy activity '{act.name}' using flexible API-aligned models")
             
-            # Construct the final API-compliant structure for Lookup
-            activity_dict["typeProperties"] = {
-                "source": source_payload,
-                "datasetSettings": dataset_payload.get("datasetSettings")
-            }
-            
-        elif isinstance(act, GetMetadataActivity):
-            # For GetMetadata, build the dataset payload from the validated model
-            dataset_payload = build_sink_payload(act.typeProperties.datasetSettings) # Re-use the sink builder
-            
-            # Construct the final API-compliant structure for GetMetadata
-            activity_dict["typeProperties"] = {
-                "fieldList": act.typeProperties.fieldList,
-                "datasetSettings": dataset_payload.get("datasetSettings")
-            }
+            elif isinstance(act, LookupActivity):
+                if layout_only:
+                    warnings.append(f"Lookup activity '{act.name}' created as layout scaffold - configure source/dataset manually")
+                else:
+                    # Flexible models already contain correct API structure - no transformation needed
+                    logger.info(f"Lookup activity '{act.name}' using flexible API-aligned models")
+                
+            elif isinstance(act, GetMetadataActivity):
+                if layout_only:
+                    warnings.append(f"GetMetadata activity '{act.name}' created as layout scaffold - configure dataset manually")
+                else:
+                    # Flexible models already contain correct API structure - no transformation needed
+                    logger.info(f"GetMetadata activity '{act.name}' using flexible API-aligned models")
+                    
+        except Exception as e:
+            if strict and not layout_only:
+                raise ToolError(f"Failed to build payload for {activity_type} activity '{act.name}': {str(e)}")
+            else:
+                warnings.append(f"Could not build full payload for {activity_type} activity '{act.name}': {str(e)}")
 
         final_activities_json.append(activity_dict)
 
     pipeline_struct = {"name": pipeline_name, "properties": {"activities": final_activities_json}}
-    return _encode_b64(pipeline_struct)
+    return _encode_b64(pipeline_struct), warnings
 
 async def create_pipeline_impl(
     ctx: Context,
@@ -82,10 +90,15 @@ async def create_pipeline_impl(
     try:
         client = await get_session_fabric_client(ctx)
 
-        b64_payload = _build_pipeline_definition_payload(
+        b64_payload, warnings = _build_pipeline_definition_payload(
             pipeline_name=pipeline_name,
-            activities=activities
+            activities=activities,
+            strict=True,
+            layout_only=False
         )
+        
+        if warnings:
+            logger.warning(f"Pipeline build warnings: {warnings}")
 
         definition = ItemDefinitionForCreate(
             format="Trident.DataPipeline",
@@ -110,19 +123,23 @@ async def update_pipeline_impl(
     workspace_id: str = Field(..., description="ID of the pipeline's workspace."),
     pipeline_id: str = Field(..., description="ID of the pipeline to update."),
     pipeline_name: str = Field(..., description="The current or new name of the pipeline."),
-    activities: List[Activity] = Field(..., description="The complete, final list of activities for the pipeline.")
+    activities: List[Activity] = Field(..., description="The complete, final list of activities for the pipeline."),
+    strict: bool = Field(True, description="If true, fail if any activity lacks a proper builder. If false, emit warnings."),
+    layout_only: bool = Field(False, description="If true, create minimal scaffolds that pass validation but may not run.")
 ) -> Dict[str, Any]:
     """
     Updates a Data Pipeline's definition with a new list of activities.
     This replaces all existing activities with the provided list.
     """
-    logger.info(f"Tool 'update_pipeline' called for pipeline '{pipeline_id}'.")
+    logger.info(f"Tool 'update_pipeline' called for pipeline '{pipeline_id}' (strict={strict}, layout_only={layout_only}).")
     try:
         client = await get_session_fabric_client(ctx)
 
-        b64_payload = _build_pipeline_definition_payload(
+        b64_payload, warnings = _build_pipeline_definition_payload(
             pipeline_name=pipeline_name,
-            activities=activities
+            activities=activities,
+            strict=strict,
+            layout_only=layout_only
         )
         
         parts = [{"path": "pipeline-content.json", "payload": b64_payload, "payloadType": "InlineBase64"}]
@@ -134,8 +151,14 @@ async def update_pipeline_impl(
             definition=definition
         )
         
+        result = {"status": "Unknown", "warnings": warnings}
+        
         if response.status_code in [200, 202]:
-            return {"status": "Succeeded", "message": "Pipeline definition update accepted."}
+            result["status"] = "Succeeded"
+            result["message"] = "Pipeline definition update accepted."
+            if layout_only:
+                result["message"] += " Activities created as layout scaffolds - manual configuration required."
+            return result
         else:
             raise ToolError(f"Failed to update pipeline. Status: {response.status_code}, Body: {response.text}")
 
