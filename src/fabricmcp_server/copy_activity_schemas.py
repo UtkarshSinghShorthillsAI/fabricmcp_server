@@ -1,21 +1,11 @@
-# This is the final, definitive, and correct file: src/fabricmcp_server/copy_activity_schemas.py
+# Copy activity source/sink models and payload builders
+# Uses central models from common_schemas.py and connection_types.py
 
 from __future__ import annotations
 from typing import List, Optional, Literal, Dict, Any, Union, Annotated
 from pydantic import BaseModel, Field
-
-# =============================================================================
-#  GENERIC & REUSABLE COMPONENTS
-# =============================================================================
-class ExternalReferences(BaseModel):
-    connection: str
-
-class DatasetReference(BaseModel):
-    referenceName: str
-    type: Literal["DatasetReference"] = "DatasetReference"
-
-class TabularTranslator(BaseModel):
-    type: Literal["TabularTranslator"] = "TabularTranslator"
+from .common_schemas import ExternalReferences, DatasetReference, TabularTranslator
+from .connection_types import build_fabric_linkedservice
 
 # =============================================================================
 #  SOURCE MODELS (User-Facing, High-Level Schemas)
