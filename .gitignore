@@ -1,2 +1,6 @@
 .env
 __pycache__
+
+# Corpus folder in root (contains large API spec files)
+# Keep tests/fabric_api/corpus/ for test cases
+/corpus/

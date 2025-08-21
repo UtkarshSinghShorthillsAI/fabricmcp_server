@@ -44,8 +44,13 @@ def _extract_definition(def_response: Dict[str, Any]) -> Dict[str, Any]:
     return def_response
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="function")
 async def fabric_client() -> Generator[FabricApiClient, None, None]:
+    """Create a fresh Fabric API client for each test function.
+    
+    Using function scope to avoid event loop issues when running multiple async tests.
+    Each test gets its own client instance that's properly closed after the test.
+    """
     base_url = os.getenv("FABRIC_API_BASE_URL", "https://api.fabric.microsoft.com")
     client = await FabricApiClient.create(base_url)
     try:

@@ -4,7 +4,14 @@ from typing import List, Optional, Literal, Dict, Any, Union, Annotated
 from pydantic import BaseModel, Field, model_validator
 # Removed overfitted copy schemas - using flexible models
 from .common_schemas import Expression, PipelineReference, ExternalReferences, LinkedServiceReference, DatasetReference, TabularTranslator
-from .connection_types import DatabaseConnectionRef, StorageConnectionRef, FabricLinkedService
+from .connection_types import (
+    DatabaseConnectionRef, 
+    StorageConnectionRef, 
+    ServiceConnectionRef,
+    OtherConnectionRef,
+    ConnectionRef,  # Union of all connection types
+    FabricLinkedService
+)
 
 # ---------------- Common pieces ----------------
 
@@ -60,11 +67,47 @@ class TeamsActivity(BaseActivity):
 from .flexible_copy_schemas import FlexibleCopyProperties
 
 class CopyActivity(BaseActivity):
-    """Flexible Copy Activity model - matches real Fabric API patterns"""
+    """Flexible Copy Activity model - matches real Fabric API patterns.
+    
+    Example usage for copying from SqlServer to Lakehouse:
+    {
+        "name": "Copy_SqlServer_to_Lakehouse",
+        "type": "Copy",
+        "typeProperties": {
+            "source": {
+                "type": "SqlServerSource",
+                "datasetSettings": {
+                    "type": "SqlServerTable",
+                    "externalReferences": {"connection": "your_sqlserver_connection_id"}
+                }
+            },
+            "sink": {
+                "type": "LakehouseTableSink",
+                "datasetSettings": {
+                    "type": "LakehouseTable",
+                    "typeProperties": {"table": "target_table_name"},
+                    "linkedService": {
+                        "name": "lakehouse_name",
+                        "properties": {
+                            "type": "Lakehouse",
+                            "typeProperties": {
+                                "artifactId": "lakehouse_id",
+                                "workspaceId": "workspace_id"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    Pattern for source types: {ConnectionType}Source (e.g., OracleSource, MySqlSource)
+    Pattern for sink types: LakehouseTableSink or DataWarehouseSink for Fabric targets
+    """
     type: Literal["Copy"]
-    typeProperties: FlexibleCopyProperties
-    inputs: Optional[List[DatasetReference]] = None
-    outputs: Optional[List[DatasetReference]] = None
+    typeProperties: FlexibleCopyProperties = Field(..., description="Copy activity configuration with source and sink")
+    inputs: Optional[List[DatasetReference]] = Field(None, description="Optional dataset references for inputs")
+    outputs: Optional[List[DatasetReference]] = Field(None, description="Optional dataset references for outputs")
 
 
 # ---------------- RefreshDataflow ----------------
@@ -338,7 +381,7 @@ class ScriptActivity(BaseActivity):
     type: Literal["Script"]
     typeProperties: ScriptProperties
     linkedService: Optional[FabricLinkedService] = Field(None, description="For DataWarehouse connections only")
-    externalReferences: Optional[Union[DatabaseConnectionRef, Dict[str, Any]]] = Field(None, description="For external database connections - verified types only")
+    externalReferences: Optional[Union[ConnectionRef, Dict[str, Any]]] = Field(None, description="For any external connections - all 52 verified types")
     
     @model_validator(mode='after')
     def validate_connection_pattern(self):
